@@ -833,6 +833,24 @@ func TestLoadOpenAIResponseHeaderTimeoutFromConfig(t *testing.T) {
 	require.Equal(t, 45, cfg.Gateway.OpenAIResponseHeaderTimeout)
 }
 
+func TestLoadNonstreamKeepaliveFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Zero(t, cfg.Gateway.NonstreamKeepaliveInterval, "disabled unless configured")
+
+	t.Setenv("GATEWAY_NONSTREAM_KEEPALIVE_INTERVAL", "30")
+	cfg, err = Load()
+	require.NoError(t, err)
+	require.Equal(t, 30, cfg.Gateway.NonstreamKeepaliveInterval)
+
+	for _, invalid := range []string{"4", "61", "-1"} {
+		t.Setenv("GATEWAY_NONSTREAM_KEEPALIVE_INTERVAL", invalid)
+		_, err = Load()
+		require.ErrorContains(t, err, "gateway.nonstream_keepalive_interval", invalid)
+	}
+}
+
 func TestLoadImageNonstreamKeepaliveFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_IMAGE_NONSTREAM_KEEPALIVE_INTERVAL", "15")

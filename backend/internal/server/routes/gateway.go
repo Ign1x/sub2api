@@ -5,6 +5,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -64,7 +65,12 @@ func RegisterGatewayRoutes(
 	textBodyLimit := middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize, bodyBudget)
 	imageAdmission := middleware.ExcelBPSImageAdmission()
 	clientRequestID := middleware.ClientRequestID()
-	opsErrorLogger := handler.OpsErrorLoggerMiddleware(opsService)
+	// The keepalive wraps the ops logger so that the logger still records the
+	// status the handler chose; with the interval at 0 it is not installed.
+	opsErrorLogger := middleware.NonstreamKeepalive(
+		time.Duration(cfg.Gateway.NonstreamKeepaliveInterval)*time.Second,
+		handler.OpsErrorLoggerMiddleware(opsService),
+	)
 	var captureTraffic gin.HandlerFunc
 	if h.Admin != nil && h.Admin.RequestCapture != nil {
 		captureTraffic = middleware.RequestCapture(h.Admin.RequestCapture.Manager)
