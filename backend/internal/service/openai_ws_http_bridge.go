@@ -664,6 +664,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				turn,
 				truncateOpenAIWSLogValue(retryReason, openAIWSLogValueMaxLen),
 			)
+			noteOpenAIResponsesReplayIdentityRetry(account, retryReason)
 			body = retryBody
 			payloadBytes = len(body)
 			continue

@@ -1525,6 +1525,12 @@ func normalizeOpenAIResponsesCompatibilityBodyWithOptions(body []byte, account *
 		normalized = sanitized
 		changed = true
 	}
+	// Only an account whose upstream rejected replayed item identity is
+	// rewritten here; see openai_responses_replay_identity.go.
+	if identityFree, identityChanged := applyLearnedOpenAIResponsesReplayIdentity(account, normalized); identityChanged {
+		normalized = identityFree
+		changed = true
+	}
 	if account != nil && account.IsOpenAI() && account.IsOAuth() {
 		if reasoningBody, reasoningChanged, err := normalizeOpenAIResponsesReasoningMode(normalized, account.GetMappedModel(gjson.GetBytes(normalized, "model").String())); err != nil {
 			return body, false, err

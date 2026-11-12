@@ -2002,6 +2002,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 						return nil, fmt.Errorf("normalize websocket rejected field retry: %w", retryErr)
 					}
 					if changed && rejectedFieldRetryState.Allow(retryBody) {
+						noteOpenAIResponsesReplayIdentityRetry(account, retryReason)
 						logOpenAIWSModeInfo(
 							"ingress_ws_rejected_field_retry account_id=%d turn=%d conn_id=%s reason=%s",
 							account.ID,

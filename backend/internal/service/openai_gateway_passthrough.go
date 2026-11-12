@@ -444,6 +444,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 				return nil, fmt.Errorf("normalize passthrough rejected Responses field retry body: %w", retryErr)
 			} else if changed && rejectedFieldRetryState.Allow(retryBody) {
 				body = retryBody
+				noteOpenAIResponsesReplayIdentityRetry(account, reason)
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying passthrough request after %s (account: %s)", reason, account.Name)
 				continue
 			}

@@ -193,7 +193,7 @@ func normalizeOpenAIResponsesRejectedFieldRetryBody(statusCode int, body, respon
 		param == maxZeroContentParam && code == "array_above_max_length" {
 		return removeOpenAIResponsesRejectedReasoningContentAtIndex(body, index)
 	}
-	return nil, "", false, nil
+	return openAIResponsesReplayIdentityRetryBody(statusCode, body, responseBody)
 }
 
 func isExplicitOpenAIResponsesFieldRejection(code, message string) bool {

@@ -417,6 +417,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			originalModel = reqModel
 		}
 	}
+	// Only an account whose upstream rejected replayed item identity is
+	// rewritten here; see openai_responses_replay_identity.go.
+	if identityFreeBody, changed := applyLearnedOpenAIResponsesReplayIdentity(account, body); changed {
+		body = identityFreeBody
+		originalBody = identityFreeBody
+		requestView = newOpenAIRequestView(identityFreeBody)
+	}
 
 	compatMessagesBridge := isOpenAICompatMessagesBridgeBody(body)
 	setOpenAICompatMessagesBridgeContext(c, compatMessagesBridge)
@@ -1499,6 +1506,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				body = retryBody
 				requestView = newOpenAIRequestView(body)
 				reqBody = nil
+				noteOpenAIResponsesReplayIdentityRetry(account, reason)
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying non-WSv2 request after %s (account: %s)", reason, account.Name)
 				continue
 			}
