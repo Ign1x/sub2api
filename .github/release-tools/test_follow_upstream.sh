@@ -18,6 +18,8 @@ case "$1 $2" in
   'api repos/'*) echo "${STUB_LATEST_TAG:-}" ;;
   'issue list') echo "${STUB_ISSUE_NUMBER:-}" ;;
   'release delete') exit "${STUB_RELEASE_DELETE_STATUS:-0}" ;;
+  'release view') exit "${STUB_RELEASE_VIEW_STATUS:-0}" ;;
+  'run list') echo "${STUB_PUBLISHING_RUNS:-0}" ;;
 esac
 STUB
 chmod +x "$ROOT/bin/gh"
@@ -183,6 +185,27 @@ check 'gh only resolved the tag' test "$(grep -vc '^api ' "$GH_LOG")" -eq 0
 check 'released=false' grep -qx 'released=false' "$GITHUB_OUTPUT"
 run DRY_RUN=true STUB_LATEST_TAG=v1.1.0 VERIFY_CMD=false
 check 'a failing dry run files no issue' test "$status" -eq 1 -a "$(grep -c '^issue ' "$GH_LOG")" -eq 0
+
+echo '9. tag pushed earlier but never published'
+fixture resume patch
+run
+commit "$S/work" ours2.txt patch2 'second fork patch'
+git -C "$S/work" push --quiet origin main
+before=$(refs "$S/origin.git")
+: >"$GH_LOG"
+: >"$GITHUB_OUTPUT"
+clone
+run STUB_RELEASE_VIEW_STATUS=1 STUB_PUBLISHING_RUNS=1
+check 'waits while release.yml is publishing' grep -q 'waiting' "$S/stdout"
+check 'origin untouched while waiting' test "$status" -eq 0 -a "$(refs "$S/origin.git")" = "$before"
+check 'nothing dispatched while waiting' test "$(grep -c 'workflow run' "$GH_LOG")" -eq 0
+clone
+run STUB_RELEASE_VIEW_STATUS=1
+check 'exits 0' test "$status" -eq 0
+check 'says resuming' grep -q 'resuming' "$S/stdout"
+check 'tag moved to the current head' test "$(origin rev-parse 'v1.0.0^{commit}')" = "$(origin rev-parse main)"
+check 'release.yml dispatched' logged 'workflow run release.yml'
+check 'released=true' grep -qx 'released=true' "$GITHUB_OUTPUT"
 
 echo '8. tags that are not plain releases are refused'
 fixture badtag patch

@@ -52,10 +52,22 @@ case $status in
   2) ;;
   *) echo "::error::cannot list tags on origin" >&2; exit 1 ;;
 esac
+# The tag alone does not prove a release: a run can push it and then fail to
+# start release.yml. Only a published release, or one being published, counts.
 if [[ $tag_on_origin == true && $REBUILD != true ]]; then
-  echo "up to date: $tag is already released from $GITHUB_REPOSITORY"
-  output released false
-  exit 0
+  if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+    echo "up to date: $tag is already released from $GITHUB_REPOSITORY"
+    output released false
+    exit 0
+  fi
+  publishing=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --limit 20 \
+    --json status --jq 'map(select(.status != "completed")) | length' 2>/dev/null) || publishing=0
+  if [[ ${publishing:-0} -gt 0 ]]; then
+    echo "waiting: $tag is being published by release.yml"
+    output released false
+    exit 0
+  fi
+  echo "resuming: $tag was pushed but never published"
 fi
 
 # Upstream tags stay out of refs/tags: every v* tag pushed there would start a
@@ -126,11 +138,11 @@ if [[ $DRY_RUN == true ]]; then
   exit 0
 fi
 
-tag_push=(git push origin "refs/tags/$tag")
 if [[ $tag_on_origin == true ]]; then
   # A rebuild replaces the release; one that never got published is fine.
   gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
-  tag_push=(git push --force origin "refs/tags/$tag")
+  # Pushing an unchanged tag starts nothing, so the old one always goes first.
+  git push origin ":refs/tags/$tag" 2>/dev/null || true
 fi
 if ! git push origin "HEAD:refs/heads/$TARGET_BRANCH"; then
   if [[ $PUSH_TRIGGERS_WORKFLOWS != true ]]; then
@@ -140,7 +152,7 @@ if ! git push origin "HEAD:refs/heads/$TARGET_BRANCH"; then
   fi
   exit 1
 fi
-"${tag_push[@]}"
+git push origin "refs/tags/$tag"
 
 if [[ $PUSH_TRIGGERS_WORKFLOWS != true ]]; then
   # Pushes made with GITHUB_TOKEN start no workflows, so release.yml has to be
