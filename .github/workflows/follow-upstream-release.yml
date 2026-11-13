@@ -6,8 +6,8 @@
 #   1. Enable Actions on the fork (forks start with workflows disabled).
 #   2. Make the maintained branch (upstream release + fork patches) the default
 #      branch: `schedule` only runs from the default branch.
-#   3. Secret UPSTREAM_SYNC_TOKEN: fine-grained PAT for this repository with
-#      Contents and Workflows read/write. Without it the run uses GITHUB_TOKEN,
+#   3. Secret UPSTREAM_SYNC_SSH_KEY: private half of a deploy key of this
+#      repository with write access. Without it the run pushes with GITHUB_TOKEN,
 #      which cannot push a merge that changes .github/workflows.
 #   4. Optional repository variables: UPSTREAM_REPO (default ranxi2001/sub2api),
 #      SIMPLE_RELEASE=true (amd64 GHCR image only).
@@ -59,7 +59,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch || github.ref_name }}
           fetch-depth: 0
-          token: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          ssh-key: ${{ secrets.UPSTREAM_SYNC_SSH_KEY }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
@@ -68,12 +68,12 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Merge, verify, tag and publish
         env:
-          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
           TARGET_BRANCH: ${{ github.event.repository.default_branch || github.ref_name }}
           REQUESTED_TAG: ${{ inputs.tag }}
           REBUILD: ${{ inputs.rebuild == true }}
           DRY_RUN: ${{ inputs.dry_run == true }}
-          PUSH_TRIGGERS_WORKFLOWS: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
+          PUSH_TRIGGERS_WORKFLOWS: ${{ secrets.UPSTREAM_SYNC_SSH_KEY != '' }}
           SIMPLE_RELEASE: ${{ vars.SIMPLE_RELEASE == 'true' }}
           VERIFY_CMD: >-
             cd backend &&

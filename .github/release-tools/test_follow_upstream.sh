@@ -207,6 +207,21 @@ check 'tag moved to the current head' test "$(origin rev-parse 'v1.0.0^{commit}'
 check 'release.yml dispatched' logged 'workflow run release.yml'
 check 'released=true' grep -qx 'released=true' "$GITHUB_OUTPUT"
 
+echo '10. a conflict limited to the VERSION file takes the upstream value'
+fixture version conflict
+commit "$S/work" ours.txt patch 'chore: sync VERSION to 1.0.0 [skip ci]'
+git -C "$S/work" push --quiet origin main
+clone
+run STUB_LATEST_TAG=v1.1.0 VERSION_FILE=base.txt
+check 'exits 0' test "$status" -eq 0
+check 'main is a merge commit' test "$(origin rev-list --parents -n1 main | wc -w)" -eq 3
+check 'merge subject' test "$(origin log -1 --format=%s main)" = 'merge: upstream v1.1.0'
+check 'file holds the upstream value' test "$(origin show main:base.txt)" = upstream-edit
+check 'tag points at main' test "$(origin rev-parse 'v1.1.0^{commit}')" = "$(origin rev-parse main)"
+message=$(origin for-each-ref --format='%(contents)' refs/tags/v1.1.0)
+check 'notes list the fork patch' contains "$message" '- fork edits base'
+check 'notes skip VERSION sync commits' test "$(grep -c 'sync VERSION' <<<"$message")" -eq 0
+
 echo '8. tags that are not plain releases are refused'
 fixture badtag patch
 before=$(refs "$S/origin.git")

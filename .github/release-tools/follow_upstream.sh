@@ -10,6 +10,7 @@ UPSTREAM_URL=${UPSTREAM_URL:-https://github.com/$UPSTREAM_REPO.git}
 REBUILD=${REBUILD:-false}
 DRY_RUN=${DRY_RUN:-false}
 PUSH_TRIGGERS_WORKFLOWS=${PUSH_TRIGGERS_WORKFLOWS:-false}
+VERSION_FILE=${VERSION_FILE:-backend/cmd/server/VERSION}
 BOT=(-c 'user.name=github-actions[bot]' -c 'user.email=41898282+github-actions[bot]@users.noreply.github.com')
 
 output() {
@@ -80,10 +81,12 @@ git checkout --quiet "$TARGET_BRANCH"
 merged=false
 if ! git merge-base --is-ancestor "$upstream_commit" HEAD; then
   if ! git "${BOT[@]}" merge --no-ff --no-edit -m "merge: upstream $tag" "$upstream_commit"; then
-    # shellcheck disable=SC2016 # literal Markdown backticks
-    conflicts=$(git diff --name-only --diff-filter=U | sed 's/.*/- `&`/')
-    git merge --abort 2>/dev/null || true
-    report "Upstream $tag needs a manual merge" "Merging \`$tag\` from $UPSTREAM_REPO into \`$TARGET_BRANCH\` stopped on conflicts:
+    conflicted=$(git diff --name-only --diff-filter=U)
+    if [[ $conflicted != "$VERSION_FILE" ]]; then
+      # shellcheck disable=SC2016 # literal Markdown backticks
+      conflicts=$(git diff --name-only --diff-filter=U | sed 's/.*/- `&`/')
+      git merge --abort 2>/dev/null || true
+      report "Upstream $tag needs a manual merge" "Merging \`$tag\` from $UPSTREAM_REPO into \`$TARGET_BRANCH\` stopped on conflicts:
 
 ${conflicts:-(git reported no conflicted paths; see the run log)}
 
@@ -96,7 +99,13 @@ git merge --no-ff -m 'merge: upstream $tag' '$upstream_ref^{commit}'
 # fix the conflicts, then
 git commit --no-edit && git push origin $TARGET_BRANCH
 \`\`\`"
-    exit 1
+      exit 1
+    fi
+    # release.yml stamps this file from the tag at build time and commits the
+    # result back, so both sides bump it and its value on the branch is unused.
+    git checkout --theirs -- "$VERSION_FILE"
+    git add -- "$VERSION_FILE"
+    git "${BOT[@]}" commit --quiet --no-edit
   fi
   merged=true
 fi
@@ -118,7 +127,7 @@ fi
 # release.yml publishes this tag's body as the release notes.
 subject=$(git for-each-ref --format='%(contents:subject)' "$upstream_ref")
 body=$(git for-each-ref --format='%(contents:body)' "$upstream_ref")
-ours=$(git log --no-merges --format='- %s' "$upstream_commit..HEAD")
+ours=$(git log --no-merges --format='- %s' "$upstream_commit..HEAD" | grep -v '^- chore: sync VERSION to ' || true)
 notes=$(mktemp)
 trap 'rm -f "$notes"' EXIT
 {
@@ -148,7 +157,7 @@ if ! git push origin "HEAD:refs/heads/$TARGET_BRANCH"; then
   if [[ $PUSH_TRIGGERS_WORKFLOWS != true ]]; then
     # GITHUB_TOKEN can never be granted the workflows permission, and most
     # upstream releases change files under .github/workflows.
-    echo "::error::push rejected. If the merge touches .github/workflows, set the UPSTREAM_SYNC_TOKEN secret (PAT with Contents and Workflows read/write)." >&2
+    echo "::error::push rejected. If the merge touches .github/workflows, set the UPSTREAM_SYNC_SSH_KEY secret (private half of a write deploy key)." >&2
   fi
   exit 1
 fi
