@@ -38,7 +38,7 @@ func TestGatewayEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testi
 }
 
 // Writer 已写后 ensureForwardErrorResponse 必须把错误以 SSE 形式追加，
-// 而不是 silent EOF。非 /responses 路径走 legacy data:{"type":"error"} 分支。
+// 而不是 silent EOF。非 /responses 路径使用命名 error 事件。
 func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -53,6 +53,24 @@ func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) 
 	require.Equal(t, http.StatusTeapot, w.Code)
 	assert.Contains(t, w.Body.String(), "already written")
 	assert.Contains(t, w.Body.String(), `data: {"type":"error"`)
+	assert.Contains(t, w.Body.String(), "event: error\ndata: ")
+}
+
+func TestGatewayEnsureForwardErrorResponse_MessagesTruncationEmitsNamedError(t *testing.T) {
+	c, w := newGinContextForEndpoint(t, EndpointMessages)
+	c.Header("Content-Type", "text/event-stream")
+	_, err := c.Writer.WriteString(partialMessageStartSSE)
+	require.NoError(t, err)
+	c.Writer.Flush()
+
+	require.True(t, (&GatewayHandler{}).ensureForwardErrorResponse(c, false))
+
+	tail := strings.TrimPrefix(w.Body.String(), partialMessageStartSSE)
+	require.True(t, strings.HasPrefix(tail, "event: error\ndata: "), "Claude must receive the error before EOF")
+	require.True(t, strings.HasSuffix(tail, "\n\n"))
+	require.Equal(t, 1, strings.Count(w.Body.String(), "event: error\n"))
+	require.NotContains(t, w.Body.String(), "event: message_stop", "a truncated generation must stay failed")
+	require.NotEmpty(t, service.GetOpsStreamErrors(c))
 }
 
 func TestGatewayEnsureForwardErrorResponse_SkipsCommittedSSEError(t *testing.T) {

@@ -1097,6 +1097,37 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		}
 		return result, fmt.Errorf("stream usage incomplete: client disconnected: %w", cause)
 	}
+	flushPendingEvent := func() (*streamingResult, error) {
+		outputBlocks, data, usagePatch, err := processSSEEvent(pendingEventLines)
+		pendingEventLines = pendingEventLines[:0]
+		if err != nil {
+			return nil, err
+		}
+
+		// Merge before writing: even a failed write may carry upstream-metered
+		// usage. Do not read future events after disconnect.
+		if data != "" {
+			if firstTokenMs == nil && data != "[DONE]" {
+				ms := int(time.Since(startTime).Milliseconds())
+				firstTokenMs = &ms
+			}
+			if usagePatch != nil {
+				mergeSSEUsagePatch(usage, usagePatch)
+			}
+		}
+		for _, block := range outputBlocks {
+			restored := reverseToolNamesIfPresent(c, []byte(block))
+			if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
+				return clientGone(werr)
+			}
+			if err := FlushGatewayResponse(w); err != nil {
+				return clientGone(err)
+			}
+			lastDataAt = time.Now()
+			resetKeepaliveTimer()
+		}
+		return nil, nil
+	}
 	clientCtx := c.Request.Context()
 	for {
 		// Give cancellation priority over a busy stream or a timeout tick.
@@ -1119,7 +1150,15 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				return clientGone(err)
 			}
 			if !ok {
-				// 上游完成，返回结果
+				// Some upstreams close cleanly after the final JSON line without
+				// an SSE blank line. Parse and frame that event before checking the
+				// terminal state, so a real message_stop and final usage are kept.
+				// Read errors take the separate path below and are never repaired.
+				if len(pendingEventLines) > 0 {
+					if result, err := flushPendingEvent(); result != nil || err != nil {
+						return result, err
+					}
+				}
 				if !sawTerminalEvent {
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: false}, fmt.Errorf("stream usage incomplete: missing terminal event")
 				}
@@ -1172,33 +1211,8 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					continue
 				}
 
-				outputBlocks, data, usagePatch, err := processSSEEvent(pendingEventLines)
-				pendingEventLines = pendingEventLines[:0]
-				if err != nil {
-					return nil, err
-				}
-
-				// Merge the current event before writing: even a failed write may carry
-				// upstream-metered usage. Do not read future events after disconnect.
-				if data != "" {
-					if firstTokenMs == nil && data != "[DONE]" {
-						ms := int(time.Since(startTime).Milliseconds())
-						firstTokenMs = &ms
-					}
-					if usagePatch != nil {
-						mergeSSEUsagePatch(usage, usagePatch)
-					}
-				}
-				for _, block := range outputBlocks {
-					restored := reverseToolNamesIfPresent(c, []byte(block))
-					if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
-						return clientGone(werr)
-					}
-					if err := FlushGatewayResponse(w); err != nil {
-						return clientGone(err)
-					}
-					lastDataAt = time.Now()
-					resetKeepaliveTimer()
+				if result, err := flushPendingEvent(); result != nil || err != nil {
+					return result, err
 				}
 				continue
 			}

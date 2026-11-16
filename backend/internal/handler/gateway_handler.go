@@ -1965,7 +1965,9 @@ func (h *GatewayHandler) handleStreamingAwareErrorWithCode(c *gin.Context, statu
 			if code != "" {
 				errorCode = `,"code":` + strconv.Quote(code)
 			}
-			errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + errorCode + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
+			// Anthropic SDKs ignore unnamed SSE events. The JSON type alone
+			// cannot turn a data-only frame into a client-visible API error.
+			errorEvent := "event: error\n" + `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + errorCode + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
 			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
 				_ = c.Error(err)
 			}

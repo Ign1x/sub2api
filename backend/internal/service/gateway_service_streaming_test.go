@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,55 @@ func TestGatewayService_StreamingReusesScannerBufferAndStillParsesUsage(t *testi
 	require.NotNil(t, result.usage)
 	require.Equal(t, 3, result.usage.InputTokens)
 	require.Equal(t, 7, result.usage.OutputTokens)
+}
+
+func TestGatewayService_StreamingFinalEventAtEOF(t *testing.T) {
+	const start = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n"
+	const delta = "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n"
+	const terminal = "event: message_stop\ndata: {\"type\":\"message_stop\"}"
+	for _, tt := range []struct {
+		name       string
+		tail       string
+		readError  error
+		wantError  bool
+		wantOutput int
+	}{
+		{name: "complete terminal", tail: terminal + "\n\n", wantOutput: 7},
+		{name: "terminal without blank line", tail: terminal + "\n", wantOutput: 7},
+		{name: "terminal without newline", tail: terminal, wantOutput: 7},
+		{name: "final usage without terminal", tail: "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":9}}", wantError: true, wantOutput: 9},
+		{name: "truncated terminal JSON", tail: "event: message_stop\ndata: {\"type\":\"message_stop\"", wantError: true, wantOutput: 7},
+		{name: "terminal header without data", tail: "event: message_stop", wantError: true, wantOutput: 7},
+		{name: "terminal line followed by read error", tail: terminal + "\n", readError: io.ErrUnexpectedEOF, wantError: true, wantOutput: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			svc := newStreamingResponseTestGatewayService()
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			var body io.ReadCloser = io.NopCloser(strings.NewReader(start + delta + tt.tail))
+			if tt.readError != nil {
+				body = &streamReadCloser{payload: []byte(start + delta + tt.tail), err: tt.readError}
+			}
+			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: body}
+
+			result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+
+			if tt.readError != nil {
+				require.ErrorIs(t, err, tt.readError)
+				require.NotContains(t, rec.Body.String(), "event: message_stop", "a read error must not dispatch an unfinished terminal event")
+			} else if tt.wantError {
+				require.ErrorContains(t, err, "missing terminal event")
+			} else {
+				require.NoError(t, err)
+				require.True(t, strings.HasSuffix(rec.Body.String(), terminal+"\n\n"), "the terminal event needs a delimiter for the SDK to dispatch it")
+			}
+			require.NotNil(t, result)
+			require.Equal(t, 3, result.usage.InputTokens)
+			require.Equal(t, tt.wantOutput, result.usage.OutputTokens)
+		})
+	}
 }
 
 func TestGatewayService_StreamingKeepaliveUsesIdleTimer(t *testing.T) {

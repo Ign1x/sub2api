@@ -241,7 +241,7 @@ func TestGatewayAdmissionError_MessagesStreamingIncludesGatewayCode(t *testing.T
 		gatewayConcurrencyLimitCode, "Concurrency limit exceeded for account, please retry later", true)
 
 	body := w.Body.String()
-	assert.True(t, strings.HasPrefix(body, `data: {"type":"error"`))
+	assert.True(t, strings.HasPrefix(body, "event: error\ndata: "))
 	payload := body[strings.Index(body, "{"):]
 	assert.Equal(t, "rate_limit_error", gjson.Get(payload, "error.type").String())
 	assert.Equal(t, gatewayConcurrencyLimitCode, gjson.Get(payload, "error.code").String())
@@ -257,15 +257,21 @@ func TestGatewayAdmissionError_BareResponsesFailedIncludesGatewayCode(t *testing
 	assert.Equal(t, gatewayQueueFullCode, errObj["code"])
 }
 
-// Gateway handler: /v1/messages preserves the legacy data:{type:error,...} format
-// (Anthropic spec accepts a type:"error" stream event).
-func TestGatewayHandleStreamingAwareError_MessagesStreamingKeepsLegacy(t *testing.T) {
+// Anthropic's SDK ignores SSE frames without an event name, even when their
+// JSON contains type:error. A named error must reach Claude Code before EOF.
+func TestGatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError(t *testing.T) {
 	c, w := newGinContextForEndpoint(t, EndpointMessages)
 	h := &GatewayHandler{}
 	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "boom", true)
 
 	body := w.Body.String()
-	assert.True(t, strings.HasPrefix(body, `data: {"type":"error"`), "got: %q", body)
+	require.True(t, strings.HasPrefix(body, "event: error\ndata: "), "got: %q", body)
+	require.True(t, strings.HasSuffix(body, "\n\n"))
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(body, "event: error\ndata: "))), &payload))
+	assert.Equal(t, "error", payload["type"])
+	assert.Equal(t, "upstream_error", payload["error"].(map[string]any)["type"])
+	assert.Equal(t, "boom", payload["error"].(map[string]any)["message"])
 }
 
 // 项目里 /responses 注册在多组路由：/v1/responses（gateway）、裸 /responses（top-level）、
