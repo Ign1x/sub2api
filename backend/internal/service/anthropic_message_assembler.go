@@ -190,6 +190,11 @@ func (b *anthropicBufferedBlock) delta(delta map[string]json.RawMessage) error {
 		if err := json.Unmarshal(delta["partial_json"], &part); err != nil {
 			return err
 		}
+		// Claude Code keepalives can contain an empty input_json_delta. It
+		// carries no tool argument bytes and must not replace the initial input.
+		if part == "" {
+			return nil
+		}
 		b.hasInput = true
 		b.input.WriteString(part)
 		return nil

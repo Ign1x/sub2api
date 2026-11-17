@@ -241,6 +241,20 @@ func TestAnthropicNonstreamToStream_AssemblerRejectsBrokenLifecycle(t *testing.T
 	}
 }
 
+func TestAnthropicNonstreamToStream_EmptyToolDeltaKeepalive(t *testing.T) {
+	lines := strings.Split(bufferedAnthropicFixture(), "\n")
+	for i, line := range lines {
+		if gjson.Get(line, "delta.type").String() == "input_json_delta" {
+			lines[i] = `{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}}`
+		}
+	}
+	assembly, err := assembleAnthropicMessage([]byte(anthropicFixtureSSE(strings.Join(lines, "\n"))))
+	require.NoError(t, err)
+	body, err := assembly.json()
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, gjson.GetBytes(body, "content.2.input").Raw)
+}
+
 func TestAnthropicNonstreamToStream_CancelStopsHeaderAndBodyWait(t *testing.T) {
 	for _, passthrough := range []bool{false, true} {
 		for _, afterHeaders := range []bool{false, true} {
