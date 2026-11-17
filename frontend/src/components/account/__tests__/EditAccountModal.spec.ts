@@ -349,6 +349,31 @@ function mountModal(account = buildAccount(), renderGroupSelector = false) {
 }
 
 describe('EditAccountModal', () => {
+  it.each(['apikey', 'oauth', 'setup-token', 'service_account'])('saves and clears synchronous upstream streaming for Anthropic %s', async (type) => {
+    const account = { ...(type === 'service_account' ? buildVertexAccount() : buildAccount()), platform: 'anthropic', type, extra: { unrelated: 'preserve', anthropic_nonstream_to_stream: true } }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await flushPromises()
+    const toggle = wrapper.get('[data-testid="anthropic-nonstream-to-stream"]')
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    await toggle.trigger('click')
+    await wrapper.get('#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({ anthropic_nonstream_to_stream: false, unrelated: 'preserve' })
+    await wrapper.setProps({ account: { ...account, extra: { unrelated: 'preserve' } } })
+    expect(wrapper.get('[data-testid="anthropic-nonstream-to-stream"]').attributes('aria-checked')).toBe('false')
+    await wrapper.get('[data-testid="anthropic-nonstream-to-stream"]').trigger('click')
+    await wrapper.get('#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra).toMatchObject({ anthropic_nonstream_to_stream: true, unrelated: 'preserve' })
+  })
+
+  it('does not offer Anthropic synchronous streaming to OpenAI accounts', () => {
+    const wrapper = mountModal()
+    expect(wrapper.find('[data-testid="anthropic-nonstream-to-stream"]').exists()).toBe(false)
+  })
+
   it.each(['active', 'error'])('omits unchanged OpenAI OAuth status %s from an unrelated edit', async (status) => {
     const account = { ...buildOpenAIOAuthParentAccount(), status }
     updateAccountMock.mockReset().mockResolvedValue(account)

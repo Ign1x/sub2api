@@ -8,6 +8,23 @@
 重试，仍可能遇到上游超时。排查时应分别检查原始流是否包含结束事件，以及重试
 过程中记录的上游状态，不能仅凭客户端的 HTTP 200 判断请求成功。
 
+## 账号级同步转流式
+
+在 Anthropic 账号的新建、编辑或批量编辑中开启「同步请求转上游流式」。默认关闭，
+保存于 `extra.anthropic_nonstream_to_stream`，无需数据库迁移。
+
+开启后，客户端的同步 `/v1/messages` 请求以 `stream:true` 发往上游；网关收齐
+`message_stop` 后返回一份 `application/json` Message。已有流式请求保持原行为。
+文本、thinking 签名、工具参数、引用、上游附加字段及缓存用量随聚合结果保留。
+
+响应缓冲受 `gateway.upstream_response_read_max_bytes` 限制，默认 128 MiB；沿用
+流式转发的数据间隔超时、客户端取消和账号错误策略。未开始生成的 HTTP 错误可按
+现有策略切换账号；已开始的生成若中断、参数损坏或超出缓冲上限，返回 JSON 错误，
+记录已观测用量，不返回半截成功结果，也不重放该生成。
+
+该开关缓解上游等待完整同步结果时的代理超时。上游即便使用流式仍长时间不响应时，
+仍可能超时。客户端到网关的长同步等待可继续配合非流式 JSON 心跳。
+
 ## SSE 错误事件
 
 `GatewayHandler.handleStreamingAwareErrorWithCode` 的 Anthropic SSE 错误带有

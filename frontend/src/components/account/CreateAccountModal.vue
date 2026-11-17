@@ -3457,6 +3457,8 @@
         />
       </div>
 
+      <AnthropicNonstreamToggle v-if="form.platform === 'anthropic'" v-model="anthropicNonstreamToStreamEnabled" />
+
       <!-- Anthropic API Key 自动透传开关 -->
       <div
         v-if="form.platform === 'anthropic' && accountCategory === 'apikey'"
@@ -4389,6 +4391,7 @@ import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import { applyExplicitCacheUpstreamCredentials, isOfficialGeminiBaseUrl } from '@/utils/geminiExplicitCache'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import AnthropicNonstreamToggle from '@/components/account/AnthropicNonstreamToggle.vue'
 import { allSelectedGroupsEnableLongContextPricing } from '@/components/account/longContextBilling'
 import {
   applyAntigravityProjectID,
@@ -4477,7 +4480,7 @@ const withAccountExtraSettings = (extra?: Record<string, unknown>): Record<strin
     throw new Error(t('admin.accounts.costMultiplierInvalid'))
   }
   const name = upstreamRequestIdHeader.value.trim()
-  return { ...(extra || {}), cost_multiplier: costMultiplier.value, ...(name ? { upstream_request_id_header: name } : {}) }
+  return { ...(extra || {}), cost_multiplier: costMultiplier.value, ...(name ? { upstream_request_id_header: name } : {}), ...(form.platform === 'anthropic' && anthropicNonstreamToStreamEnabled.value ? { anthropic_nonstream_to_stream: true } : {}) }
 }
 
 const baseUrlHint = computed(() => {
@@ -4985,6 +4988,7 @@ const codexFingerprintModeOptions = computed(() => [
   { value: 'full' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintFull') },
 ])
 type AnthropicAPIKeyAuthScheme = 'x_api_key' | 'authorization_bearer'
+const anthropicNonstreamToStreamEnabled = ref(false)
 const anthropicPassthroughEnabled = ref(false)
 const anthropicStripClaudeCodeIdentityEnabled = ref(false)
 const anthropicMimicClaudeCodeEnabled = ref(false)
@@ -6089,6 +6093,7 @@ const resetForm = () => {
   codexCLIOnlyEnabled.value = false
   codexCLIOnlyAppServerEnabled.value = false
   codexFingerprintMode.value = 'off'
+  anthropicNonstreamToStreamEnabled.value = false
   anthropicPassthroughEnabled.value = false
   anthropicStripClaudeCodeIdentityEnabled.value = false
   anthropicMimicClaudeCodeEnabled.value = false

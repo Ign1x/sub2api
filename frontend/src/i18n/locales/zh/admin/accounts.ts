@@ -1212,6 +1212,8 @@ export default {
         noResponseBody: '服务器未返回响应体'
       },
       anthropic: {
+        nonstreamToStream: '同步请求转上游流式',
+        nonstreamToStreamDesc: '默认关闭。同步 Messages 请求改用上游流式传输，收齐后仍返回完整 JSON，可缓解等待完整响应导致的代理超时。需要上游支持流式响应。',
         apiKeyPassthrough: '自动透传（仅替换认证）',
         apiKeyPassthroughDesc:
           '仅对 Anthropic API Key 生效。开启后，messages/count_tokens 请求将透传上游并仅替换认证，保留计费/并发/审计及必要安全过滤；关闭即可回滚到现有兼容链路。',

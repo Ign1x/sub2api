@@ -96,7 +96,10 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	var resp *http.Response
 	retryStart := time.Now()
 	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
-		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, input.RequestStream)
+		// Synchronous callers using the streaming adapter must retain their
+		// cancellation, including while waiting for upstream response headers.
+		_, bufferedSync := c.Writer.(*anthropicBufferedWriter)
+		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, input.RequestStream && !bufferedSync)
 		upstreamReq, wireBody, err := s.buildUpstreamRequestAnthropicAPIKeyPassthrough(upstreamCtx, c, account, input.Body, token)
 		releaseUpstreamCtx()
 		if err != nil {

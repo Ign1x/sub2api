@@ -745,6 +745,14 @@
         </div>
       </div>
 
+      <div v-if="allAnthropic" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="enableAnthropicNonstreamToStream" type="checkbox" data-testid="bulk-enable-anthropic-nonstream-to-stream" class="rounded border-gray-300 text-primary-600" />
+          {{ t('admin.accounts.anthropic.nonstreamToStream') }}
+        </label>
+        <AnthropicNonstreamToggle v-if="enableAnthropicNonstreamToStream" v-model="anthropicNonstreamToStreamEnabled" class="mt-3" />
+      </div>
+
       <!-- Header Override (eligible API-key platforms + grok OAuth) -->
       <div v-if="allHeaderOverrideCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="flex items-center justify-between">
@@ -1601,6 +1609,7 @@ import {
   getPresetMappingsByPlatform
 } from '@/composables/useModelWhitelist'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import AnthropicNonstreamToggle from '@/components/account/AnthropicNonstreamToggle.vue'
 import {
   buildHeaderOverridesObject,
   isHeaderOverrideCapable,
@@ -1723,6 +1732,8 @@ const allHeaderOverrideCapable = computed(() => {
 })
 
 // 是否全部为 Anthropic OAuth/SetupToken（显示完整配额控制）
+const allAnthropic = computed(() => targetSelectedPlatforms.value.length === 1 && targetSelectedPlatforms.value[0] === 'anthropic')
+
 const allAnthropicOAuthOrSetupToken = computed(() => {
   return (
     targetSelectedPlatforms.value.length === 1 &&
@@ -1759,6 +1770,8 @@ const enableModelRestriction = ref(false)
 const enableOpenAIModelAliases = ref(false)
 const openaiModelAliases = ref(true)
 const enableCustomErrorCodes = ref(false)
+const enableAnthropicNonstreamToStream = ref(false)
+const anthropicNonstreamToStreamEnabled = ref(false)
 const enableInterceptWarmup = ref(false)
 const enableHeaderOverride = ref(false)
 const enableProxy = ref(false)
@@ -2235,6 +2248,10 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     credentialsChanged = true
   }
 
+  if (enableAnthropicNonstreamToStream.value && allAnthropic.value) {
+    ensureExtra().anthropic_nonstream_to_stream = anthropicNonstreamToStreamEnabled.value
+  }
+
   if (enableInterceptWarmup.value) {
     credentials.intercept_warmup_requests = interceptWarmupRequests.value
     credentialsChanged = true
@@ -2401,6 +2418,7 @@ const handleSubmit = async () => {
     enableModelRestriction.value ||
     (enableOpenAIModelAliases.value && allOpenAIOAuthOnly.value) ||
     enableCustomErrorCodes.value ||
+    (enableAnthropicNonstreamToStream.value && allAnthropic.value) ||
     enableInterceptWarmup.value ||
     enableHeaderOverride.value ||
     enableProxy.value ||
@@ -2569,6 +2587,8 @@ watch(
       enableOpenAIModelAliases.value = false
       openaiModelAliases.value = true
       enableCustomErrorCodes.value = false
+      enableAnthropicNonstreamToStream.value = false
+      anthropicNonstreamToStreamEnabled.value = false
       enableInterceptWarmup.value = false
       enableHeaderOverride.value = false
       enableProxy.value = false

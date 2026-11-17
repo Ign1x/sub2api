@@ -95,6 +95,20 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
 }
 
 describe('BulkEditAccountModal', () => {
+  it.each([false, true])('bulk saves Anthropic synchronous streaming as %s', async (enabled) => {
+    const wrapper = mountModal({ selectedPlatforms: ['anthropic'], selectedTypes: ['apikey', 'oauth'] })
+    await wrapper.get('[data-testid="bulk-enable-anthropic-nonstream-to-stream"]').setValue(true)
+    if (enabled) await wrapper.get('[data-testid="anthropic-nonstream-to-stream"]').trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], { extra: { anthropic_nonstream_to_stream: enabled } })
+  })
+
+  it('hides synchronous streaming for mixed platforms', () => {
+    const wrapper = mountModal({ selectedPlatforms: ['anthropic', 'openai'] })
+    expect(wrapper.find('[data-testid="bulk-enable-anthropic-nonstream-to-stream"]').exists()).toBe(false)
+  })
+
   it('repairs OAuth alias scope without replacing mappings or enabling BPS', async () => {
     const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['oauth'] })
     await wrapper.get('[data-testid="enable-model-aliases"]').setValue(true)

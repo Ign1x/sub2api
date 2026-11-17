@@ -1105,6 +1105,8 @@ export default {
         noResponseBody: 'No response body from server'
       },
       anthropic: {
+        nonstreamToStream: 'Stream upstream for synchronous requests',
+        nonstreamToStreamDesc: 'Off by default. Send synchronous Messages requests upstream as streams, then return the complete JSON response. Helps with proxy timeouts while waiting for a full response. Requires upstream streaming support.',
         apiKeyPassthrough: 'Auto passthrough (auth only)',
         apiKeyPassthroughDesc:
           'Only applies to Anthropic API Key accounts. When enabled, messages/count_tokens are forwarded in passthrough mode with auth replacement only, while billing/concurrency/audit and safety filtering are preserved. Disable to roll back immediately.',

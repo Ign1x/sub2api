@@ -89,6 +89,13 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 
 // Forward 转发请求到Claude API
 func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (result *ForwardResult, err error) {
+	if parsed != nil && !parsed.Stream && account.IsAnthropicNonstreamToStreamEnabled() {
+		return s.forwardAnthropicNonstreamToStream(ctx, c, account, parsed)
+	}
+	return s.forwardMessages(ctx, c, account, parsed)
+}
+
+func (s *GatewayService) forwardMessages(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (result *ForwardResult, err error) {
 	if err := CheckUpstreamModeration(ctx, c, account); err != nil {
 		return nil, err
 	}

@@ -269,6 +269,22 @@ function expectWSAcceleration(extra: unknown, enabled: boolean) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it.each([false, true])('creates an Anthropic API key with synchronous streaming %s', async (enabled) => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'admin.accounts.claudeConsole')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude streaming')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    const toggle = wrapper.get('[data-testid="anthropic-nonstream-to-stream"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    if (enabled) await toggle.trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.anthropic_nonstream_to_stream === true).toBe(enabled)
+    await selectButtonByText(wrapper, 'OpenAI')
+    expect(wrapper.find('[data-testid="anthropic-nonstream-to-stream"]').exists()).toBe(false)
+  })
+
   it('leaves upstream response-tier billing disabled by default', async () => {
     await submitApiKeyAccount('openai')
 

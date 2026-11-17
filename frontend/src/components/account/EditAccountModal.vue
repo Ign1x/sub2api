@@ -2690,6 +2690,8 @@
         </template>
       </section>
 
+      <AnthropicNonstreamToggle v-if="account?.platform === 'anthropic'" v-model="anthropicNonstreamToStreamEnabled" />
+
       <!-- Anthropic API Key 自动透传开关 -->
       <div
         v-if="account?.platform === 'anthropic' && account?.type === 'apikey'"
@@ -3852,6 +3854,7 @@ import {
 } from '@/utils/geminiExplicitCache'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import AnthropicNonstreamToggle from '@/components/account/AnthropicNonstreamToggle.vue'
 import OllamaCloudUsageSettings from '@/components/account/OllamaCloudUsageSettings.vue'
 import {
   applyAntigravityProjectID,
@@ -4699,6 +4702,7 @@ const codexFingerprintMode = ref<CodexFingerprintMode>('off')
 type CodexImageToolMode = 'inherit' | 'enabled' | 'disabled' | 'block'
 const codexImageToolMode = ref<CodexImageToolMode>('inherit')
 type AnthropicAPIKeyAuthScheme = 'x_api_key' | 'authorization_bearer'
+const anthropicNonstreamToStreamEnabled = ref(false)
 const anthropicPassthroughEnabled = ref(false)
 const anthropicStripClaudeCodeIdentityEnabled = ref(false)
 const anthropicMimicClaudeCodeEnabled = ref(false)
@@ -5268,6 +5272,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   codexCLIOnlyAppServerEnabled.value = false
   codexFingerprintMode.value = 'off'
   codexImageToolMode.value = 'inherit'
+  anthropicNonstreamToStreamEnabled.value = newAccount.platform === 'anthropic' && extra?.anthropic_nonstream_to_stream === true
   anthropicPassthroughEnabled.value = false
   anthropicStripClaudeCodeIdentityEnabled.value = false
   anthropicMimicClaudeCodeEnabled.value = false
@@ -7287,6 +7292,13 @@ const handleSubmit = async () => {
       // Quota notify config
       writeQuotaNotifyToExtra(newExtra, 'update')
       updatePayload.extra = newExtra
+    }
+
+    if (props.account.platform === 'anthropic') {
+      updatePayload.extra = {
+        ...((updatePayload.extra as Record<string, unknown>) || props.account.extra || {}),
+        anthropic_nonstream_to_stream: anthropicNonstreamToStreamEnabled.value
+      }
     }
 
     // 上游ID头名只在改动时写回 extra，避免用弹窗打开时的快照覆盖运行态键。
