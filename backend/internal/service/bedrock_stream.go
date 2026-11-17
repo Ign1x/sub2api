@@ -157,6 +157,9 @@ func (s *GatewayService) handleBedrockStreamingResponse(
 					logger.LegacyPrintf("service.gateway", "[Bedrock] Client disconnected during streaming, continue draining for usage: account=%d", account.ID)
 				} else {
 					flusher.Flush()
+					if _, buffered := w.(*anthropicBufferedWriter); buffered && eventType == "message_stop" {
+						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, nil
+					}
 				}
 			}
 

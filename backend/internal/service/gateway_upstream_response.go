@@ -1214,6 +1214,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				if result, err := flushPendingEvent(); result != nil || err != nil {
 					return result, err
 				}
+				if _, buffered := w.(*anthropicBufferedWriter); buffered && sawTerminalEvent {
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, nil
+				}
 				continue
 			}
 

@@ -603,6 +603,9 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 					lastDataAt = time.Now()
 					resetKeepaliveTimer()
 					inPartialEvent = false
+					if _, buffered := w.(*anthropicBufferedWriter); buffered && sawTerminalEvent {
+						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, nil
+					}
 				} else {
 					inPartialEvent = true
 				}

@@ -255,6 +255,35 @@ func TestAnthropicNonstreamToStream_EmptyToolDeltaKeepalive(t *testing.T) {
 	require.JSONEq(t, `{}`, gjson.GetBytes(body, "content.2.input").Raw)
 }
 
+func TestAnthropicNonstreamToStream_CompletesBeforeUpstreamEOF(t *testing.T) {
+	for _, passthrough := range []bool{false, true} {
+		t.Run(fmt.Sprint(passthrough), func(t *testing.T) {
+			pr, pw := io.Pipe()
+			defer pr.Close()
+			defer pw.Close()
+			transport := &anthropicHTTPUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: pr}}
+			svc := newForwardPartialUsageServiceForTest(transport)
+			account := newAnthropicAPIKeyAccountForTest()
+			account.Extra["anthropic_passthrough"] = passthrough
+			account.Extra["anthropic_nonstream_to_stream"] = true
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/messages", nil)
+			parsed, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-fable-5-2","messages":[{"role":"user","content":"hello"}]}`)), PlatformAnthropic)
+			require.NoError(t, err)
+			done := make(chan error, 1)
+			go func() { _, err := svc.Forward(context.Background(), c, account, parsed); done <- err }()
+			_, err = io.WriteString(pw, anthropicFixtureSSE(bufferedAnthropicFixture()))
+			require.NoError(t, err)
+			select {
+			case err := <-done:
+				require.NoError(t, err)
+			case <-time.After(time.Second):
+				t.Fatal("complete Message must not wait for the upstream to close its connection")
+			}
+		})
+	}
+}
+
 func TestAnthropicNonstreamToStream_CancelStopsHeaderAndBodyWait(t *testing.T) {
 	for _, passthrough := range []bool{false, true} {
 		for _, afterHeaders := range []bool{false, true} {
