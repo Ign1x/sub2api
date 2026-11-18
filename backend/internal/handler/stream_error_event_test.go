@@ -270,8 +270,10 @@ func TestGatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError(t *te
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(body, "event: error\ndata: "))), &payload))
 	assert.Equal(t, "error", payload["type"])
-	assert.Equal(t, "upstream_error", payload["error"].(map[string]any)["type"])
-	assert.Equal(t, "boom", payload["error"].(map[string]any)["message"])
+	errorPayload, ok := payload["error"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "upstream_error", errorPayload["type"])
+	assert.Equal(t, "boom", errorPayload["message"])
 }
 
 // 项目里 /responses 注册在多组路由：/v1/responses（gateway）、裸 /responses（top-level）、

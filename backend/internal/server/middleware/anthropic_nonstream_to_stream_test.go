@@ -49,8 +49,8 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 			gin.SetMode(gin.TestMode)
 			headers := make(chan struct{})
 			pr, pw := io.Pipe()
-			defer pr.Close()
-			defer pw.Close()
+			defer func() { _ = pr.Close() }()
+			defer func() { _ = pw.Close() }()
 			transport := &bufferedKeepaliveUpstream{headers: headers, body: pr, request: make(chan []byte, 1)}
 			cfg := &config.Config{}
 			gateway := service.NewGatewayService(nil, nil, nil, nil, nil, nil, nil, nil, cfg,
@@ -85,7 +85,7 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 			req, _ := http.NewRequestWithContext(ctx, "POST", server.URL+"/v1/messages", strings.NewReader(`{"model":"claude-fable-5-2","stream":false,"messages":[{"role":"user","content":"hi"}]}`))
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err, "JSON heartbeat must arrive while upstream headers are blocked")
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			require.Equal(t, 200, resp.StatusCode)
 			require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
 			beat := make([]byte, 2)
@@ -103,7 +103,7 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 				_, err = io.WriteString(pw, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 				require.NoError(t, err)
 			}
-			pw.Close()
+			require.NoError(t, pw.Close())
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.True(t, gjson.ValidBytes(bytes.TrimSpace(body)))

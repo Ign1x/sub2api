@@ -41,7 +41,7 @@ func bufferedAnthropicFixture() string {
 func anthropicFixtureSSE(lines string) string {
 	var out strings.Builder
 	for _, line := range strings.Split(strings.TrimSpace(lines), "\n") {
-		out.WriteString("event: " + gjson.Get(line, "type").String() + "\ndata: " + line + "\n\n")
+		_, _ = out.WriteString("event: " + gjson.Get(line, "type").String() + "\ndata: " + line + "\n\n")
 	}
 	return out.String()
 }
@@ -123,7 +123,7 @@ func TestAnthropicNonstreamToStream_IncompleteDoesNotSucceedOrReplay(t *testing.
 			case "upstream_error":
 				fixture = strings.Replace(fixture, `{"type":"message_stop"}`, `{"type":"error","error":{"type":"overloaded_error","message":"capacity exhausted"}}`, 1)
 			}
-			var responseBody io.ReadCloser = io.NopCloser(strings.NewReader(anthropicFixtureSSE(fixture)))
+			responseBody := io.NopCloser(strings.NewReader(anthropicFixtureSSE(fixture)))
 			if variant == "read_error" {
 				responseBody = &streamReadCloser{payload: []byte(anthropicFixtureSSE(fixture)), err: io.ErrUnexpectedEOF}
 			}
@@ -259,8 +259,8 @@ func TestAnthropicNonstreamToStream_CompletesBeforeUpstreamEOF(t *testing.T) {
 	for _, passthrough := range []bool{false, true} {
 		t.Run(fmt.Sprint(passthrough), func(t *testing.T) {
 			pr, pw := io.Pipe()
-			defer pr.Close()
-			defer pw.Close()
+			defer func() { _ = pr.Close() }()
+			defer func() { _ = pw.Close() }()
 			transport := &anthropicHTTPUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: pr}}
 			svc := newForwardPartialUsageServiceForTest(transport)
 			account := newAnthropicAPIKeyAccountForTest()
@@ -294,7 +294,9 @@ func TestAnthropicNonstreamToStream_CancelStopsHeaderAndBodyWait(t *testing.T) {
 					if afterHeaders {
 						w.Header().Set("Content-Type", "text/event-stream")
 						_, _ = io.WriteString(w, anthropicFixtureSSE(strings.Split(bufferedAnthropicFixture(), "\n")[0]))
-						w.(http.Flusher).Flush()
+						flusher, ok := w.(http.Flusher)
+						require.True(t, ok)
+						flusher.Flush()
 					}
 					close(started)
 					select {

@@ -81,7 +81,7 @@ func TestGatewayService_StreamingFinalEventAtEOF(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-			var body io.ReadCloser = io.NopCloser(strings.NewReader(start + delta + tt.tail))
+			body := io.NopCloser(strings.NewReader(start + delta + tt.tail))
 			if tt.readError != nil {
 				body = &streamReadCloser{payload: []byte(start + delta + tt.tail), err: tt.readError}
 			}

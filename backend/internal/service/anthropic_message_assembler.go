@@ -196,7 +196,7 @@ func (b *anthropicBufferedBlock) delta(delta map[string]json.RawMessage) error {
 			return nil
 		}
 		b.hasInput = true
-		b.input.WriteString(part)
+		_, _ = b.input.WriteString(part)
 		return nil
 	case "citations_delta":
 		if !json.Valid(delta["citation"]) {
@@ -216,9 +216,9 @@ func (b *anthropicBufferedBlock) delta(delta map[string]json.RawMessage) error {
 	}
 	if b.strings[field] == nil {
 		b.strings[field] = &strings.Builder{}
-		b.strings[field].WriteString(rawAnthropicString(b.fields[field]))
+		_, _ = b.strings[field].WriteString(rawAnthropicString(b.fields[field]))
 	}
-	b.strings[field].WriteString(part)
+	_, _ = b.strings[field].WriteString(part)
 	return nil
 }
 
