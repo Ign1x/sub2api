@@ -1,5 +1,33 @@
 # Release matrix
 
+## Following upstream releases
+
+`follow-upstream-release.yml` checks for the latest upstream release once a day
+at 04:17 UTC. Use its **Run workflow** button to check sooner; select `dry_run`
+to merge and verify without pushing or publishing.
+
+Merge conflicts and verification failures fail the run and open one issue per
+release and failure type. Subsequent failures reference the open issue in the
+run log without adding notification-generating comments. Full failure details
+remain in each run log. Keep fork documentation exceptions beside the existing
+`docs/*` exceptions in `.gitignore`, so upstream additions at the end of the file
+can merge without conflicting with fork-only additions.
+
+GitHub's built-in Actions notifications are controlled by the recipient, not by
+workflow YAML. To silence successful runs, open
+[Settings → Notifications](https://github.com/settings/notifications), then
+**System → Actions**, select **Only notify for failed workflows**, and save.
+This is an account-wide preference, not a per-repository switch. See
+[GitHub's notification documentation](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications).
+
+Run the offline merge, verification, publication and notification checks with:
+
+```bash
+bash .github/release-tools/test_follow_upstream.sh
+```
+
+## Building release artifacts
+
 The release workflow builds the frontend once, then runs each configured Go target on its own Linux runner. `CGO_ENABLED=0` permits cross-compilation. The target matrix is read from `.goreleaser.yaml`, including its exclusions; simple releases select Linux amd64 only.
 
 Each build uses GoReleaser OSS in snapshot mode with the selected release version and one target. Archive naming, bundled files, Go flags and release templates remain in the existing GoReleaser configurations. Every archive is accompanied by its source commit, target, version and SHA256. The publishing job verifies the complete matrix before building images or publishing. It uses GoReleaser's `extra_files` support to publish existing archives and checksums, with builds disabled. No Pro license is needed.

@@ -160,7 +160,10 @@ check 'merge aborted' test -z "$(git -C "$S/work" status --porcelain)"
 : >"$GH_LOG"
 clone
 run STUB_LATEST_TAG=v1.1.0 STUB_ISSUE_NUMBER=7
-check 'an open issue gets a comment instead of a duplicate' logged 'issue comment 7 --repo me/fork'
+check 'a repeated conflict still fails the run' test "$status" -eq 1
+check 'an open issue is referenced in the run log' grep -q 'already reported: me/fork#7' "$S/stdout"
+check 'current conflict details remain in the run log' grep -q 'base.txt' "$S/stdout"
+check 'an open issue gets no repeated comment' test "$(grep -c 'issue comment' "$GH_LOG")" -eq 0
 check 'no second issue' test "$(grep -c 'issue create' "$GH_LOG")" -eq 0
 
 echo '5. verification fails'

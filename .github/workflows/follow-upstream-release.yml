@@ -15,7 +15,8 @@ name: Follow upstream release
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    # Check once a day at 04:17 UTC; workflow_dispatch can follow a release sooner.
+    - cron: '17 4 * * *'
   workflow_dispatch:
     inputs:
       tag:

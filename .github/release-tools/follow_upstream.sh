@@ -28,7 +28,9 @@ report() {
   number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
     --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty" 2>/dev/null) || number=''
   if [[ -n $number ]]; then
-    gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body" >/dev/null
+    # Repeating a scheduled failure must not notify issue subscribers again.
+    # The current failure details are already printed in this run's log.
+    echo "already reported: $GITHUB_REPOSITORY#$number"
   else
     gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" >/dev/null
   fi || echo "::warning::could not file an issue (are Issues enabled on $GITHUB_REPOSITORY?)"
