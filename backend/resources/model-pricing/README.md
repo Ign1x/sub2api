@@ -1,5 +1,12 @@
 # Model Pricing Data
 
+The Gemini 4 Neon base model and Antigravity Low/Medium/High/XHigh IDs use the
+[official Neon price card](https://aistudio.google.com/docs/pricing#gemini-4-neon):
+USD 3 input, 15 output (including thinking), and 0.15 cached input per million
+tokens. Priority rates are 5.4, 27, and 0.27 respectively. Explicit tier entries
+also work with gateway binaries that do not normalize Neon thinking suffixes.
+The 262,144 output-token limit matches the Antigravity account catalog.
+
 This directory contains a local copy of the mirrored model pricing data as a fallback mechanism.
 
 ## Source
