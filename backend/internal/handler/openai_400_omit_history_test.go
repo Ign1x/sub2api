@@ -49,7 +49,7 @@ func (s *omit400SettingsRepo) GetMultiple(_ context.Context, _ []string) (map[st
 // ciphertext. This is an offline contract test, not provider compatibility proof.
 func TestOpenAI400OmitHistoryHTTP(t *testing.T) {
 	for _, stream := range []bool{false, true} {
-		for _, scenario := range []string{"standalone", "after409", "400_off", "still_rejected", "retry_503", "retry_disconnect"} {
+		for _, scenario := range []string{"standalone", "after409", "400_off", "codeless", "codeless_off", "still_rejected", "retry_503", "retry_disconnect"} {
 			t.Run(fmt.Sprintf("%s/stream=%t", scenario, stream), func(t *testing.T) {
 				clients := issue805Redis(t)
 				followup := issue715Body(true, stream)
@@ -95,7 +95,11 @@ func TestOpenAI400OmitHistoryHTTP(t *testing.T) {
 					if n > 1 && (strings.Contains(string(body), "fixture-400-reasoning") || scenario == "still_rejected") {
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusBadRequest)
-						_, _ = io.WriteString(w, `{"error":{"code":"invalid_encrypted_content","message":"The encrypted content could not be verified."}}`)
+						if strings.HasPrefix(scenario, "codeless") {
+							_, _ = io.WriteString(w, `{"error":{"type":"invalid_request_error","code":null,"param":"","message":"The encrypted content could not be verified. Reason: Encrypted content could not be decrypted or parsed. [trace_id=0123456789abcdef0123456789abcdef]"}}`)
+						} else {
+							_, _ = io.WriteString(w, `{"error":{"code":"invalid_encrypted_content","message":"The encrypted content could not be verified."}}`)
+						}
 						return
 					}
 					if n > 1 {
@@ -138,7 +142,7 @@ func TestOpenAI400OmitHistoryHTTP(t *testing.T) {
 				if scenario == "after409" {
 					accounts[0].Schedulable = false
 				}
-				answer := issue758Request(t, newNode(scenario != "400_off"), followup)
+				answer := issue758Request(t, newNode(scenario != "400_off" && scenario != "codeless_off"), followup)
 				mu.Lock()
 				defer mu.Unlock()
 				if scenario == "after409" {
@@ -149,7 +153,7 @@ func TestOpenAI400OmitHistoryHTTP(t *testing.T) {
 					require.NotEqual(t, identities[0], identities[1])
 					require.NotContains(t, string(bodies[1]), "fixture-400-reasoning")
 					require.Contains(t, answer.Body.String(), "continued from readable history")
-				} else if scenario == "400_off" {
+				} else if scenario == "400_off" || scenario == "codeless_off" {
 					require.Equal(t, http.StatusBadRequest, answer.Code, answer.Body.String())
 					require.Len(t, bodies, 2, "one producer, one rejected continuation")
 				} else {

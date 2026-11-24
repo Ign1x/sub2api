@@ -1567,7 +1567,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			respBody = s.redactAgentIdentitySensitiveBody(ctx, account, respBody)
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
-			if resp.StatusCode == http.StatusBadRequest && isOpenAIInvalidEncryptedContentError(upstreamCode, extractUpstreamErrorMessage(respBody)) {
+			if resp.StatusCode == http.StatusBadRequest && isOpenAIInvalidEncryptedContentRejection(respBody) {
 				markInvalidEncryptedContentLineage("http", body, respBody)
 				if retry, retryErr := recoverInvalidEncryptedContentHTTP(resp, respBody); retryErr != nil {
 					return nil, retryErr

@@ -14,7 +14,16 @@ import (
 
 const openAIEncryptedErrorRedacted = "Upstream encrypted content error (details redacted)"
 
-var openAIEncryptedRelayTrace = regexp.MustCompile(`^（traceid: [0-9a-fA-F]{32}）$`)
+var openAIEncryptedRelayTrace = regexp.MustCompile(`^(?:（traceid: [0-9a-fA-F]{32}）|\[trace_id=[0-9a-fA-F]{32}\])$`)
+var openAIEncryptedDiagnosticTrace = regexp.MustCompile(`(?: ?（traceid: [0-9a-fA-F]{32}）| \[trace_id=[0-9a-fA-F]{32}\])$`)
+
+func openAIEncryptedCodeMissing(code gjson.Result) bool {
+	return code.Type == gjson.Null || (code.Type == gjson.String && code.String() == "")
+}
+
+func openAIEncryptedParameterEmpty(param gjson.Result) bool {
+	return param.Type == gjson.Null || (param.Type == gjson.String && param.String() == "")
+}
 
 // A locator alone proves nothing. Only an explicit encryption rejection, this
 // exact diagnostic and one safe matching item together allow recovery.
@@ -39,10 +48,10 @@ func openAIEncryptedRejectionFields(rejection []byte) (string, string) {
 	// Some relays encode one structured error inside error.message. Only
 	// unwrap a code-less invalid_request_error envelope, never arbitrary text
 	// or a conflicting explicit code. Validate inner keys separately too.
-	if root.Get("code").Type == gjson.Null && root.Get("type").String() == "invalid_request_error" {
+	if openAIEncryptedCodeMissing(root.Get("code")) && root.Get("type").String() == "invalid_request_error" &&
+		strings.HasPrefix(root.Get("message").String(), "{") {
 		message := root.Get("message")
-		if message.Type != gjson.String || !strings.HasPrefix(message.String(), "{") ||
-			(root.Get("param").Exists() && root.Get("param").Type != gjson.Null) {
+		if message.Type != gjson.String || !openAIEncryptedParameterEmpty(root.Get("param")) {
 			return "", ""
 		}
 		decoder := json.NewDecoder(strings.NewReader(message.String()))
@@ -61,10 +70,24 @@ func openAIEncryptedRejectionFields(rejection []byte) (string, string) {
 		}
 		root = envelope.Get("error") // One layer only; nested wrappers stay invalid.
 	}
+	message := openAIEncryptedDiagnosticTrace.ReplaceAllString(root.Get("message").String(), "")
+	// Some relays omit the code entirely. A typed, parameter-free rejection
+	// with the complete fixed diagnostic is equivalent evidence; a mention of
+	// encryption, a redacted message or a conflicting code is not.
+	if openAIEncryptedCodeMissing(root.Get("code")) && root.Get("type").String() == "invalid_request_error" &&
+		root.Get("message").Type == gjson.String && openAIEncryptedParameterEmpty(root.Get("param")) &&
+		(openAIEncryptedLocator.MatchString(message) || message == "The encrypted content could not be verified. Reason: Encrypted content could not be decrypted or parsed.") {
+		return "invalid_encrypted_content", message
+	}
 	if root.Get("code").Type != gjson.String || (root.Get("message").Exists() && root.Get("message").Type != gjson.String) {
 		return "", ""
 	}
-	return root.Get("code").String(), root.Get("message").String()
+	return root.Get("code").String(), message
+}
+
+func isOpenAIInvalidEncryptedContentRejection(rejection []byte) bool {
+	code, message := openAIEncryptedRejectionFields(rejection)
+	return isOpenAIInvalidEncryptedContentError(code, message)
 }
 
 // Only called on a rejection, never on the successful request hot path.

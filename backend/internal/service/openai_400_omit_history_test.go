@@ -103,6 +103,8 @@ func TestOpenAI400HistoryNativeForward(t *testing.T) {
 		}{
 			{name: "disabled", calls: 1},
 			{name: "enabled", enabled: true, calls: 2, applied: true},
+			{name: "codeless enabled", enabled: true, failure: `{"error":{"type":"invalid_request_error","code":null,"param":"","message":"The encrypted content could not be verified. Reason: Encrypted content could not be decrypted or parsed. [trace_id=0123456789abcdef0123456789abcdef]"}}`, calls: 2, applied: true},
+			{name: "codeless disabled", failure: `{"error":{"type":"invalid_request_error","code":null,"param":"","message":"The encrypted content could not be verified. Reason: Encrypted content could not be decrypted or parsed. [trace_id=0123456789abcdef0123456789abcdef]"}}`, calls: 1},
 			{name: "after409", enabled: true, after409: true, calls: 2, applied: true},
 			{name: "409 alone", after409: true, calls: 1},
 			{name: "one lossy retry only", enabled: true, rejectedAgain: true, calls: 2, applied: true},

@@ -42,21 +42,12 @@ func isOpenAIInvalidEncryptedContentSSE(payload []byte, eventType string) bool {
 	if !gjson.ValidBytes(payload) {
 		return false
 	}
-	path := ""
 	switch eventType {
-	case "response.failed":
-		path = "response.error."
-	case "error":
-		if gjson.GetBytes(payload, "error").IsObject() {
-			path = "error."
-		}
+	case "response.failed", "error":
 	default:
 		return false
 	}
-	return isOpenAIInvalidEncryptedContentError(
-		gjson.GetBytes(payload, path+"code").String(),
-		gjson.GetBytes(payload, path+"message").String(),
-	)
+	return isOpenAIInvalidEncryptedContentRejection(payload)
 }
 
 func openAICanRecoverEncryptedReasoningSSE(body []byte) bool {
