@@ -137,6 +137,10 @@ func omitOpenAI400Reasoning(item map[string]any) (map[string]any, bool) {
 	for key := range item {
 		switch key {
 		case "type", "id", "status", "encrypted_content", "summary", "content":
+		case "internal_chat_message_metadata_passthrough":
+			// Codex's local turn/provenance metadata is not model-readable
+			// history. Native OAuth compatibility already omits this field;
+			// it must not block this explicitly enabled lossy conversion.
 		default:
 			return nil, false
 		}

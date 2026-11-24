@@ -25,9 +25,9 @@ func openAIEncryptedParameterEmpty(param gjson.Result) bool {
 	return param.Type == gjson.Null || (param.Type == gjson.String && param.String() == "")
 }
 
-// A locator alone proves nothing. Only an explicit encryption rejection, this
+// A locator alone proves nothing. Only a validated encryption rejection, this
 // exact diagnostic and one safe matching item together allow recovery.
-var openAIEncryptedLocator = regexp.MustCompile(`^The encrypted content ([A-Za-z0-9_-]{4})\.\.\.([A-Za-z0-9_-]{4}) could not be verified\. Reason: Encrypted content could not be decrypted or parsed\.$`)
+var openAIEncryptedLocator = regexp.MustCompile(`^The encrypted content ([A-Za-z0-9_-]{4})\.\.\.([A-Za-z0-9_-]{4}|[A-Za-z0-9_-]{3}=|[A-Za-z0-9_-]{2}==) could not be verified\. Reason: Encrypted content could not be decrypted or parsed\.$`)
 
 func openAIEncryptedRejectionFields(rejection []byte) (string, string) {
 	if len(rejection) > 65536 || !openAIEncryptedJSONUnambiguous(rejection) {
