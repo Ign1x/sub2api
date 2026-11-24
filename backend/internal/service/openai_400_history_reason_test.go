@@ -16,7 +16,7 @@ func TestOpenAI400HistoryReasonDiagnostics(t *testing.T) {
 		{`{"input":[{"type":"compaction","encrypted_content":"fixture-private-cipher"},{"role":"user","content":"task"}]}`, "compaction_history"},
 		{`{"input":[]}`, "no_current_task"},
 		{`{"input":[{"role":"user","content":[]}]}`, "unreadable_current_task"},
-		{`{"input":[{"role":"user","content":"task"},{"type":"reasoning","encrypted_content":"fixture-private-cipher"}]}`, "current_ciphertext"},
+		{`{"input":[{"role":"user","content":[{"type":"encrypted_content","encrypted_content":"fixture-private-cipher"}]}]}`, "unreadable_current_task"},
 		{`{"input":[{"type":"reasoning","encrypted_content":"fixture-private-cipher","instructions":"fixture-private-text"},{"role":"user","content":"task"}]}`, "unsupported_reasoning_shape"},
 		{`{"input":[{"role":"user","content":"task"}]}`, "no_historical_ciphertext"},
 	} {
@@ -35,4 +35,15 @@ func TestOpenAI400HistoryReasonDiagnostics(t *testing.T) {
 	}
 	unknown := sanitizeOpenAI400HistoryDiagnostic(&OpenAI400HistoryDiagnostic{Decision: "no_eligible_history", HistoryReason: "fixture-private-input"})
 	require.Empty(t, unknown.HistoryReason)
+}
+
+func TestOpenAI400HistoryAllowsReasoningAfterCurrentUserTask(t *testing.T) {
+	body := []byte(`{"input":[{"role":"user","content":"current task"},{"type":"reasoning","status":"completed","encrypted_content":"fixture-after-task","summary":[{"type":"summary_text","text":"previous output summary"}]}]}`)
+	reason := ""
+	clean, changed := omitOpenAIHistoricalCiphertextForRecoveryWithReason(body, true, &reason)
+	require.True(t, changed)
+	require.Empty(t, reason)
+	require.NotContains(t, string(clean), "fixture-after-task")
+	require.Contains(t, string(clean), "previous output summary")
+	require.Contains(t, string(clean), openAIHistoricalCiphertextOmitted)
 }

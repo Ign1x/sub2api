@@ -84,8 +84,13 @@ func TestOpenAI400HistoryOmission(t *testing.T) {
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
 			got, changed := omitOpenAIHistoricalCiphertextForRecovery([]byte(body), true)
-			require.False(t, changed)
-			require.Equal(t, body, string(got), "refusal must not partially rewrite history")
+			if name == "current reasoning" {
+				require.True(t, changed, "reasoning after the current readable task is historical output")
+				require.NotContains(t, string(got), "current")
+			} else {
+				require.False(t, changed)
+				require.Equal(t, body, string(got), "refusal must not partially rewrite history")
+			}
 		})
 	}
 }

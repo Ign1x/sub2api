@@ -80,9 +80,6 @@ func omitOpenAIHistoricalCiphertextForRecoveryWithReason(raw []byte, omitReasoni
 				if _, ok := encrypted.(string); !ok {
 					return refuse("unsupported_ciphertext_shape")
 				}
-				if i >= current {
-					return refuse("current_ciphertext")
-				}
 				if kind != "reasoning" && kind != "agent_message" {
 					return refuse("unsupported_encrypted_item")
 				}
