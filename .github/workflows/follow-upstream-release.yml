@@ -44,7 +44,7 @@ permissions:
 env:
   UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO || 'ranxi2001/sub2api' }}
   # Tests of the patches this fork carries; a merge that breaks them is not released.
-  FORK_TEST_PATTERN: 'ReplayIdentity|DeidentifyOpenAIResponsesReplay|NonstreamKeepalive|AnthropicNonstreamToStream|GatewayService_StreamingFinalEventAtEOF|GatewayEnsureForwardErrorResponse|GatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError|GatewayAdmissionError_MessagesStreamingIncludesGatewayCode'
+  FORK_TEST_PATTERN: 'ReplayIdentity|DeidentifyOpenAIResponsesReplay|NonstreamKeepalive|AnthropicNonstreamToStream|Issue985|AnthropicAPIKeyPassthrough|GatewayProtocol|GatewayService_StreamingFinalEventAtEOF|GatewayEnsureForwardErrorResponse|GatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError|GatewayAdmissionError_MessagesStreamingIncludesGatewayCode'
 
 jobs:
   follow:
@@ -79,5 +79,5 @@ jobs:
           VERIFY_CMD: >-
             cd backend &&
             go build -o /dev/null ./cmd/server &&
-            go test ./internal/service ./internal/handler ./internal/server/... -run "$FORK_TEST_PATTERN" -count=1
+            go test -tags=unit ./internal/service ./internal/handler ./internal/server/... -run "$FORK_TEST_PATTERN" -count=1
         run: bash .github/release-tools/follow_upstream.sh

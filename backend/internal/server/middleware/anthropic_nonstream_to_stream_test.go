@@ -100,6 +100,8 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 			require.NoError(t, err, "JSON heartbeat must continue during upstream body reads")
 			require.Equal(t, " \n", string(beat))
 			if complete {
+				_, err = io.WriteString(pw, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"hello\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+				require.NoError(t, err)
 				_, err = io.WriteString(pw, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 				require.NoError(t, err)
 			}

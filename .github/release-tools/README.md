@@ -20,6 +20,11 @@ workflow YAML. To silence successful runs, open
 This is an account-wide preference, not a per-repository switch. See
 [GitHub's notification documentation](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications).
 
+The merge verification enables the `unit` build tag and runs the upstream
+Anthropic stream framing/integrity and gateway protocol regressions alongside
+the fork's replay, synchronous streaming and keepalive checks. Keep these tests
+enabled when adapting fork patches to upstream parser changes.
+
 Run the offline merge, verification, publication and notification checks with:
 
 ```bash
