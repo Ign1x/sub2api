@@ -25,6 +25,13 @@ Anthropic stream framing/integrity and gateway protocol regressions alongside
 the fork's replay, synchronous streaming and keepalive checks. Keep these tests
 enabled when adapting fork patches to upstream parser changes.
 
+Deployed header-wait and JSON-validation patches are committed on `stable`.
+Verification also covers code-less encrypted rejection recovery, the independent
+400 recovery switch, tool-history preservation and the same-account retry limit.
+The workflow ensures Redis is available so the real HTTP/Redis recovery tests run
+instead of being skipped. New upstream tags are merged into this maintained
+branch; release archives and images are built from the verified merged commit.
+
 Run the offline merge, verification, publication and notification checks with:
 
 ```bash

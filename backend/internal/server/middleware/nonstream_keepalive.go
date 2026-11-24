@@ -26,6 +26,8 @@ import (
 // The first heartbeat commits the response as "200 application/json". An error
 // that arrives after that keeps its JSON error body but can no longer change
 // the status line. That trade-off is why the feature is off by default.
+// Messages is excluded: Anthropic clients require a Message on HTTP 200 and
+// otherwise hide the real error behind an "empty or malformed response" failure.
 
 const (
 	// Set by the gateway handlers (handler.setOpsRequestContext) once the
@@ -40,7 +42,6 @@ var nonstreamKeepaliveBeat = []byte(" \n")
 // answer is one JSON document. Images and /responses/compact already have
 // keepalives of their own; binary and WebSocket endpoints must not be padded.
 var nonstreamKeepalivePathSuffixes = []string{
-	"/messages",
 	"/chat/completions",
 	"/responses",
 	":generateContent",

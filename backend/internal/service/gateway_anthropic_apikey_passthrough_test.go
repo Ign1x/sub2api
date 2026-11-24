@@ -1650,6 +1650,8 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDi
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		// A complete event reaches the failing writer; an unfinished frame
+		// stays buffered until its delimiter or clean EOF.
 		_, _ = pw.Write([]byte(`data: {"type":"message_start","message":{"usage":{"input_tokens":9}}}` + "\n\n"))
 		// 保持上游连接静默，触发数据间隔超时分支。
 		time.Sleep(1500 * time.Millisecond)

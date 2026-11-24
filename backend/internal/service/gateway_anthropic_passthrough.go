@@ -7,7 +7,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -128,7 +127,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 			input.Body = input.Parsed.Body.Bytes()
 		}
 
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+		resp, err = s.doAnthropicHeaderWait(c, upstreamReq, proxyURL, account, s.tlsFPProfileService.ResolveTLSProfile(account))
 		s.rateLimitService.observeQualityResponse(upstreamReq.Context(), account, resp, err)
 		if err != nil {
 			if resp != nil && resp.Body != nil {
@@ -576,7 +575,7 @@ func parseClaudeUsageFromResponseBody(body []byte) *ClaudeUsage {
 	return usage
 }
 
-// invalidNonStreamingJSONFailoverError 把"上游 2xx 返回非 JSON body"归一为
+// invalidNonStreamingJSONFailoverError 把上游 2xx 的无效 Messages 响应归一为
 // failover 错误（包级函数：Anthropic 平台 passthrough 与国产供应商原生
 // Anthropic 直通共用）。
 func invalidNonStreamingJSONFailoverError(
@@ -601,7 +600,7 @@ func invalidNonStreamingJSONFailoverError(
 
 	logger.LegacyPrintf(
 		"service.gateway",
-		"Account %d(%s): upstream returned non-JSON 2xx response, attempting failover: status=%d request_id=%s error=%v",
+		"Account %d(%s): upstream returned invalid Messages 2xx response, attempting failover: status=%d request_id=%s error=%v",
 		accountID,
 		accountName,
 		resp.StatusCode,
@@ -646,8 +645,7 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	observer.ObserveAnthropic(body)
 
 	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-		var raw json.RawMessage
-		if err := json.Unmarshal(body, &raw); err != nil {
+		if err := validateAnthropicMessageResponse(body); err != nil {
 			return nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err)
 		}
 	}

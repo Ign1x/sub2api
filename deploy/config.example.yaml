@@ -665,12 +665,14 @@ gateway:
   # Non-streaming Images JSON keepalive interval (seconds), 0=disable; commits HTTP 200 after the first heartbeat
   # 图片非流式 JSON keepalive 间隔（秒），0=禁用；首个心跳后 HTTP 状态会固化为 200
   image_nonstream_keepalive_interval: 0
-  # Non-streaming (synchronous) /messages, /chat/completions, /responses and :generateContent
+  # Non-streaming (synchronous) /chat/completions, /responses and :generateContent
   # JSON keepalive interval (seconds), 0=disable. Sends whitespace while the upstream is still
   # working, so a proxy with an origin idle limit (Cloudflare 524 after 100s) keeps the request
   # open. Commits HTTP 200 after the first heartbeat: a later error keeps its JSON body only.
+  # /messages is excluded so Anthropic errors keep their real HTTP status.
   # 非流式（同步）文本请求 JSON keepalive 间隔（秒），0=禁用；用于避免 Cloudflare 524。
-  # 首个心跳后 HTTP 状态固化为 200，之后的上游错误只保留 JSON 错误体。建议 30。
+  # 首个心跳后 HTTP 状态固化为 200，之后的上游错误只保留 JSON 错误体。
+  # /messages 不启用此心跳，以保留 Anthropic 错误的真实 HTTP 状态码。
   nonstream_keepalive_interval: 0
   # Image generation independent concurrency limiter (process-local, default disabled)
   # 图片生成独立并发限制（进程级，默认关闭；多实例总上限约为实例数×该值）

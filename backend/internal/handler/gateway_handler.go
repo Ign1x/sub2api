@@ -216,6 +216,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	c.Request = c.Request.WithContext(service.WithThinkingEnabled(c.Request.Context(), parsedReq.ThinkingEnabled, h.metadataBridgeEnabled()))
 
 	setOpsRequestContext(c, reqModel, reqStream)
+	// Keep header waits alive across account retries without treating comments
+	// as generated content or changing synchronous Messages responses.
+	restoreHeaderWait := service.WrapAnthropicHeaderWait(c, reqStream)
+	defer restoreHeaderWait()
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
 	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)

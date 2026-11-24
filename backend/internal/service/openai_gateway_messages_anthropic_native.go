@@ -268,8 +268,7 @@ func (s *OpenAIGatewayService) handleNativeAnthropicBufferedResponse(
 	}
 	observer.ObserveAnthropic(body)
 
-	var raw json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
+	if err := validateAnthropicMessageResponse(body); err != nil {
 		return nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, billingModel)
 	}
 

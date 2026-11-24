@@ -39,7 +39,7 @@ func (u *bufferedKeepaliveUpstream) DoWithTLS(r *http.Request, _ string, _ int64
 	return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: u.body}, nil
 }
 
-func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *testing.T) {
+func TestAnthropicNonstreamToStream_PreservesStatusAcrossHeaderAndBodyWait(t *testing.T) {
 	for _, complete := range []bool{true, false} {
 		name := "complete"
 		if !complete {
@@ -83,22 +83,37 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			req, _ := http.NewRequestWithContext(ctx, "POST", server.URL+"/v1/messages", strings.NewReader(`{"model":"claude-fable-5-2","stream":false,"messages":[{"role":"user","content":"hi"}]}`))
-			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err, "JSON heartbeat must arrive while upstream headers are blocked")
-			defer func() { _ = resp.Body.Close() }()
-			require.Equal(t, 200, resp.StatusCode)
-			require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
-			beat := make([]byte, 2)
-			_, err = io.ReadFull(resp.Body, beat)
-			require.NoError(t, err)
-			require.Equal(t, " \n", string(beat))
-			require.True(t, gjson.GetBytes(<-transport.request, "stream").Bool())
+			type clientResult struct {
+				resp *http.Response
+				err  error
+			}
+			response := make(chan clientResult, 1)
+			go func() {
+				resp, err := http.DefaultClient.Do(req)
+				response <- clientResult{resp, err}
+			}()
+			select {
+			case body := <-transport.request:
+				require.True(t, gjson.GetBytes(body, "stream").Bool())
+			case <-ctx.Done():
+				t.Fatal("upstream request did not start")
+			}
+			assertUncommitted := func() {
+				t.Helper()
+				select {
+				case out := <-response:
+					if out.resp != nil {
+						_ = out.resp.Body.Close()
+					}
+					t.Fatalf("Messages status committed before upstream completed: response=%v error=%v", out.resp, out.err)
+				case <-time.After(30 * time.Millisecond): // several configured heartbeat intervals
+				}
+			}
+			assertUncommitted()
 			close(headers)
-			_, err = io.WriteString(pw, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_test\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1}}}\n\n")
+			_, err := io.WriteString(pw, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_test\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1}}}\n\n")
 			require.NoError(t, err)
-			_, err = io.ReadFull(resp.Body, beat)
-			require.NoError(t, err, "JSON heartbeat must continue during upstream body reads")
-			require.Equal(t, " \n", string(beat))
+			assertUncommitted()
 			if complete {
 				_, err = io.WriteString(pw, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"hello\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
 				require.NoError(t, err)
@@ -106,6 +121,11 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 				require.NoError(t, err)
 			}
 			require.NoError(t, pw.Close())
+			client := <-response
+			require.NoError(t, client.err)
+			resp := client.resp
+			defer func() { _ = resp.Body.Close() }()
+			require.Contains(t, resp.Header.Get("Content-Type"), "application/json")
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.True(t, gjson.ValidBytes(bytes.TrimSpace(body)))
@@ -115,9 +135,11 @@ func TestAnthropicNonstreamToStream_JSONKeepaliveAcrossHeaderAndBodyWait(t *test
 			require.False(t, out.result.Stream)
 			if complete {
 				require.NoError(t, out.err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
 				require.Equal(t, "message", gjson.GetBytes(body, "type").String())
 			} else {
 				require.Error(t, out.err)
+				require.Equal(t, http.StatusBadGateway, resp.StatusCode, "a truncated stream must reach the synchronous SDK as an HTTP error")
 				require.Equal(t, "error", gjson.GetBytes(body, "type").String())
 			}
 		})

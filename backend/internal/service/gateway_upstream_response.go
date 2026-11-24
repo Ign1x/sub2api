@@ -1654,6 +1654,12 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	}
 	observer.ObserveAnthropic(body)
 
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		if err := validateAnthropicMessageResponse(body); err != nil {
+			return nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, mappedModel)
+		}
+	}
+
 	// 解析usage
 	var response struct {
 		Usage ClaudeUsage `json:"usage"`

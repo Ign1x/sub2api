@@ -103,6 +103,26 @@ func TestNonstreamKeepaliveLateErrorKeepsBodyAndHandlerStatus(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, observed.status, "inner middleware still sees the handler's status")
 }
 
+func TestNonstreamKeepaliveMessagesPreservesLateErrors(t *testing.T) {
+	for _, path := range []string{"/v1/messages", "/messages", "/anthropic/v1/messages"} {
+		for _, status := range []int{http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable} {
+			t.Run(path+"/"+http.StatusText(status), func(t *testing.T) {
+				recorder, observed := runNonstreamKeepalive(t, nonstreamKeepaliveTestInterval, http.MethodPost, path, func(c *gin.Context) {
+					declare(c, "claude-fable-5-2", false)
+					time.Sleep(4 * nonstreamKeepaliveTestInterval)
+					c.JSON(status, gin.H{"type": "error", "error": gin.H{"type": "upstream_error", "message": "Upstream request failed"}})
+				})
+
+				require.Equal(t, status, recorder.Code, "a synchronous Messages error must not become HTTP 200 after a heartbeat")
+				require.False(t, recorder.Flushed)
+				require.True(t, strings.HasPrefix(recorder.Body.String(), "{"), "no whitespace heartbeat may precede a Messages response")
+				require.JSONEq(t, `{"type":"error","error":{"type":"upstream_error","message":"Upstream request failed"}}`, recorder.Body.String())
+				require.Equal(t, status, observed.status)
+			})
+		}
+	}
+}
+
 func TestNonstreamKeepaliveNeverPadsOtherRequests(t *testing.T) {
 	wait := 6 * nonstreamKeepaliveTestInterval
 	tests := []struct {
@@ -115,7 +135,7 @@ func TestNonstreamKeepaliveNeverPadsOtherRequests(t *testing.T) {
 			c.Header("Content-Type", "text/event-stream")
 			c.String(http.StatusOK, "data: {}\n\n")
 		}},
-		{"request not parsed yet", http.MethodPost, "/v1/messages", func(c *gin.Context) {
+		{"request not parsed yet", http.MethodPost, "/v1/responses", func(c *gin.Context) {
 			declare(c, "", false)
 			time.Sleep(wait)
 			c.String(http.StatusBadRequest, "bad")
@@ -164,7 +184,7 @@ func TestNonstreamKeepaliveStopsOnceStreamIsDeclared(t *testing.T) {
 }
 
 func TestNonstreamKeepaliveBareStatusReachesTheWire(t *testing.T) {
-	recorder, observed := runNonstreamKeepalive(t, time.Hour, http.MethodPost, "/v1/messages", func(c *gin.Context) {
+	recorder, observed := runNonstreamKeepalive(t, time.Hour, http.MethodPost, "/v1/responses", func(c *gin.Context) {
 		c.Header("X-Handler", "yes")
 		c.Status(http.StatusNoContent)
 	})

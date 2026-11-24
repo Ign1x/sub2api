@@ -44,7 +44,7 @@ permissions:
 env:
   UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO || 'ranxi2001/sub2api' }}
   # Tests of the patches this fork carries; a merge that breaks them is not released.
-  FORK_TEST_PATTERN: 'ReplayIdentity|DeidentifyOpenAIResponsesReplay|NonstreamKeepalive|AnthropicNonstreamToStream|Issue985|AnthropicAPIKeyPassthrough|GatewayProtocol|GatewayService_StreamingFinalEventAtEOF|GatewayEnsureForwardErrorResponse|GatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError|GatewayAdmissionError_MessagesStreamingIncludesGatewayCode'
+  FORK_TEST_PATTERN: 'ReplayIdentity|DeidentifyOpenAIResponsesReplay|NonstreamKeepalive|AnthropicNonstreamToStream|Issue985|AnthropicAPIKeyPassthrough|AnthropicHeaderWait|AnthropicNonstreamRejectsJSON|AnthropicPassthroughFinalEventBoundaries|ForwardCodelessEncryptedContentRecovery|CodelessEncryptedRejectionEvidence|OpenAI400|ForwardEncryptedContentSSERetry|EncryptedSSERetry|OpenAIEncryptedRejectionCompatibility|GatewayProtocol|GatewayService_StreamingFinalEventAtEOF|GatewayEnsureForwardErrorResponse|GatewayHandleStreamingAwareError_MessagesStreamingEmitsNamedError|GatewayAdmissionError_MessagesStreamingIncludesGatewayCode'
 
 jobs:
   follow:
@@ -67,6 +67,12 @@ jobs:
           check-latest: false
           cache: true
           cache-dependency-path: backend/go.sum
+      - name: Ensure isolated Redis tests can run
+        run: |
+          if ! command -v redis-server >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y redis-server
+          fi
       - name: Merge, verify, tag and publish
         env:
           GH_TOKEN: ${{ github.token }}
