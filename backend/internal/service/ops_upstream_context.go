@@ -480,12 +480,13 @@ func setOpsUpstreamError(c *gin.Context, upstreamStatusCode int, upstreamMessage
 
 const openAI400HistoryDiagnosticKey = "openai_400_history_diagnostic"
 
-// Only fixed decisions and booleans reach the existing Ops event JSON.
+// Only fixed decisions, structural reasons and booleans reach Ops event JSON.
 // Applied means a replacement was prepared, not that upstream received it.
 type OpenAI400HistoryDiagnostic struct {
-	Applied  bool   `json:"applied"`
-	After409 bool   `json:"after_409"`
-	Decision string `json:"decision"`
+	HistoryReason string `json:"history_reason,omitempty"`
+	Applied       bool   `json:"applied"`
+	After409      bool   `json:"after_409"`
+	Decision      string `json:"decision"`
 }
 
 func sanitizeOpenAI400HistoryDiagnostic(d *OpenAI400HistoryDiagnostic) *OpenAI400HistoryDiagnostic {
@@ -497,6 +498,14 @@ func sanitizeOpenAI400HistoryDiagnostic(d *OpenAI400HistoryDiagnostic) *OpenAI40
 		"delivery_unconfirmed", "history_integrity", "ownership_unavailable", "no_eligible_history",
 		"same_account_retry_scheduled":
 		copy := *d
+		switch copy.HistoryReason {
+		case "", "invalid_input_json", "provider_pointer", "non_array_input", "item_reference_history",
+			"compaction_history", "no_current_task", "unreadable_current_task", "unsupported_ciphertext_shape",
+			"current_ciphertext", "unsupported_encrypted_item", "unsupported_reasoning_shape",
+			"unsupported_agent_content", "current_encrypted_part", "no_historical_ciphertext":
+		default:
+			copy.HistoryReason = ""
+		}
 		return &copy
 	default:
 		return nil

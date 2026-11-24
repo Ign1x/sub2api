@@ -27,6 +27,7 @@ Codex 的 `internal_chat_message_metadata_passthrough` 是已知的内部 turn/p
 
 - `applied`：已准备有损替换及恢复尝试，不代表上游一定收到第二次请求。
 - `after_409`：本次请求此前实际执行过 409 省略，不是 409 开关的全局状态。
+- `history_reason`：历史省略拒绝时的固定结构原因，例如 `compaction_history`、`current_ciphertext`、`unsupported_reasoning_shape` 或 `no_current_task`；不包含正文、密文或输入字段名。
 - `decision`：固定枚举，包括 `disabled`、`retry_exhausted`、`canceled_or_output_started`、`unsupported_context`、`delivery_unconfirmed`、`history_integrity`、`ownership_unavailable`、`no_eligible_history`、`same_account_retry_scheduled`。
 
 真正安排 Beta 时使用已有 retry 事件，`reason=encrypted_history_400_omitted`。最终错误保留实际上游状态；诊断不会制造上游调用，也不进入客户端模型响应。日志仅包含布尔值和固定决策，不包含密文、正文、摘要或凭据。旧日志缺少字段代表未知。

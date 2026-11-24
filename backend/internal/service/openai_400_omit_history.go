@@ -79,7 +79,7 @@ func (s *OpenAIGatewayService) prepareOpenAI400HistoryRecovery(ctx context.Conte
 	if s.checkOpenAIAgentRecoveryRecords(ctx, r, r.delivery.binding) != nil {
 		return refuse("ownership_unavailable")
 	}
-	clean, changed := omitOpenAIHistoricalCiphertextForRecovery(body, true)
+	clean, changed := omitOpenAIHistoricalCiphertextForRecoveryWithReason(body, true, &d.HistoryReason)
 	if !changed {
 		return refuse("no_eligible_history")
 	}

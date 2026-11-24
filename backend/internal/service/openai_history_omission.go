@@ -13,44 +13,62 @@ import (
 // HTTP 400's stricter history transformation. Pre-send 409 builds portable
 // readable context separately; this helper grants no retry permission.
 func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) ([]byte, bool) {
-	if !utf8.Valid(raw) || !openAIEncryptedJSONUnambiguous(raw) {
+	return omitOpenAIHistoricalCiphertextForRecoveryWithReason(raw, omitReasoning, nil)
+}
+
+// Fixed structural reasons help diagnose rejected history without recording
+// message text, opaque payloads or user-controlled field names.
+func omitOpenAIHistoricalCiphertextForRecoveryWithReason(raw []byte, omitReasoning bool, reason *string) ([]byte, bool) {
+	if reason != nil {
+		*reason = ""
+	}
+	refuse := func(code string) ([]byte, bool) {
+		if reason != nil {
+			*reason = code
+		}
 		return raw, false
+	}
+	if !utf8.Valid(raw) || !openAIEncryptedJSONUnambiguous(raw) {
+		return refuse("invalid_input_json")
 	}
 	for _, field := range []string{"previous_response_id", "conversation"} {
 		value := gjson.GetBytes(raw, field)
 		if value.Exists() && value.Type != gjson.Null && (value.Type != gjson.String || strings.TrimSpace(value.String()) != "") {
-			return raw, false
+			return refuse("provider_pointer")
 		}
 	}
 	var source map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	if decoder.Decode(&source) != nil {
-		return raw, false
+		return refuse("invalid_input_json")
 	}
 	input, ok := source["input"].([]any)
 	if !ok {
-		return raw, false
+		return refuse("non_array_input")
 	}
 	current := -1
 	for i, value := range input {
 		item, _ := value.(map[string]any)
 		kind, _ := item["type"].(string)
 		role, _ := item["role"].(string)
-		if kind == "item_reference" || kind == "compaction" || kind == "compaction_summary" {
-			return raw, false
+		if kind == "item_reference" {
+			return refuse("item_reference_history")
+		}
+		if kind == "compaction" || kind == "compaction_summary" {
+			return refuse("compaction_history")
 		}
 		if kind == "agent_message" || ((kind == "" || kind == "message") && role == "user") {
 			current = i
 		}
 	}
 	if current < 0 {
-		return raw, false
+		return refuse("no_current_task")
 	}
 	if omitReasoning {
 		task, _ := input[current].(map[string]any)
 		if !openAI400CurrentTaskReadable(task) {
-			return raw, false
+			return refuse("unreadable_current_task")
 		}
 	}
 	changed := false
@@ -59,13 +77,19 @@ func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) (
 		kind, _ := item["type"].(string)
 		if omitReasoning {
 			if encrypted, exists := item["encrypted_content"]; exists && encrypted != nil && encrypted != "" {
-				if _, ok := encrypted.(string); !ok || i >= current || (kind != "reasoning" && kind != "agent_message") {
-					return raw, false
+				if _, ok := encrypted.(string); !ok {
+					return refuse("unsupported_ciphertext_shape")
+				}
+				if i >= current {
+					return refuse("current_ciphertext")
+				}
+				if kind != "reasoning" && kind != "agent_message" {
+					return refuse("unsupported_encrypted_item")
 				}
 				if kind == "reasoning" {
 					replacement, ok := omitOpenAI400Reasoning(item)
 					if !ok {
-						return raw, false
+						return refuse("unsupported_reasoning_shape")
 					}
 					input[i], changed = replacement, true
 					continue
@@ -87,7 +111,7 @@ func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) (
 		if kind == "agent_message" {
 			if encrypted, exists := item["encrypted_content"]; exists && encrypted != nil && encrypted != "" {
 				if i >= current {
-					return raw, false
+					return refuse("current_ciphertext")
 				}
 				marker := map[string]any{"type": "input_text", "text": openAIHistoricalCiphertextOmitted}
 				switch content := item["content"].(type) {
@@ -98,7 +122,7 @@ func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) (
 				case nil:
 					item["content"] = []any{marker}
 				default:
-					return raw, false
+					return refuse("unsupported_agent_content")
 				}
 				delete(item, "encrypted_content")
 				itemChanged = true
@@ -109,7 +133,7 @@ func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) (
 				part, _ := rawPart.(map[string]any)
 				if part["type"] == "encrypted_content" {
 					if i >= current {
-						return raw, false
+						return refuse("current_encrypted_part")
 					}
 					parts[j] = map[string]any{"type": textKind, "text": openAIHistoricalCiphertextOmitted}
 					itemChanged = true
@@ -133,7 +157,7 @@ func omitOpenAIHistoricalCiphertextForRecovery(raw []byte, omitReasoning bool) (
 		changed = changed || itemChanged
 	}
 	if !changed {
-		return raw, false
+		return refuse("no_historical_ciphertext")
 	}
 	if omitReasoning {
 		encoded, err := json.Marshal(input)
