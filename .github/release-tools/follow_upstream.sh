@@ -9,6 +9,7 @@ UPSTREAM_URL=${UPSTREAM_URL:-https://github.com/$UPSTREAM_REPO.git}
 : "${TARGET_BRANCH:?TARGET_BRANCH is required}" "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 REBUILD=${REBUILD:-false}
 DRY_RUN=${DRY_RUN:-false}
+REPORT_ISSUES=${REPORT_ISSUES:-false}
 PUSH_TRIGGERS_WORKFLOWS=${PUSH_TRIGGERS_WORKFLOWS:-false}
 VERSION_FILE=${VERSION_FILE:-backend/cmd/server/VERSION}
 BOT=(-c 'user.name=github-actions[bot]' -c 'user.email=41898282+github-actions[bot]@users.noreply.github.com')
@@ -18,13 +19,13 @@ output() {
   if [[ -n ${GITHUB_OUTPUT:-} ]]; then echo "$1=$2" >>"$GITHUB_OUTPUT"; fi
 }
 
-# The run log always gets the full text: forks have Issues disabled by default,
-# so filing one is best effort and must not replace the real failure.
+# Always retain failures in Actions. Issue creation is opt-in because each new
+# issue can email subscribers; notification preferences are controlled by GitHub.
 report() {
   local title=$1 body=$2 number=''
   echo "::error::$title"
   printf '%s\n' "$body"
-  if [[ $DRY_RUN == true ]]; then return 0; fi
+  if [[ $DRY_RUN == true || $REPORT_ISSUES != true ]]; then return 0; fi
   number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
     --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty" 2>/dev/null) || number=''
   if [[ -n $number ]]; then

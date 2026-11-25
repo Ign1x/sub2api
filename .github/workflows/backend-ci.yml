@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [production]
+    branches: [production, stable]
     tags: ['v*']
   pull_request:
   workflow_dispatch:

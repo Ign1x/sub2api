@@ -150,7 +150,7 @@ check 'merged=false' grep -qx 'merged=false' "$GITHUB_OUTPUT"
 echo '4. conflicting upstream change'
 fixture conflict conflict
 before=$(refs "$S/origin.git")
-run STUB_LATEST_TAG=v1.1.0
+run REPORT_ISSUES=true STUB_LATEST_TAG=v1.1.0
 check 'exits 1' test "$status" -eq 1
 check 'origin untouched' test "$(refs "$S/origin.git")" = "$before"
 check 'issue filed' logged 'issue create --repo me/fork --title Upstream v1.1.0 needs a manual merge'
@@ -159,7 +159,7 @@ check 'issue names the conflicted file' logged '`base.txt`'
 check 'merge aborted' test -z "$(git -C "$S/work" status --porcelain)"
 : >"$GH_LOG"
 clone
-run STUB_LATEST_TAG=v1.1.0 STUB_ISSUE_NUMBER=7
+run REPORT_ISSUES=true STUB_LATEST_TAG=v1.1.0 STUB_ISSUE_NUMBER=7
 check 'a repeated conflict still fails the run' test "$status" -eq 1
 check 'an open issue is referenced in the run log' grep -q 'already reported: me/fork#7' "$S/stdout"
 check 'current conflict details remain in the run log' grep -q 'base.txt' "$S/stdout"
@@ -169,7 +169,7 @@ check 'no second issue' test "$(grep -c 'issue create' "$GH_LOG")" -eq 0
 echo '5. verification fails'
 fixture verify patch
 before=$(refs "$S/origin.git")
-run VERIFY_CMD=false
+run REPORT_ISSUES=true VERIFY_CMD=false
 check 'exits 1' test "$status" -eq 1
 check 'origin untouched' test "$(refs "$S/origin.git")" = "$before"
 check 'issue filed' logged 'issue create --repo me/fork --title Upstream v1.0.0 failed verification'
@@ -177,6 +177,22 @@ check 'issue filed' logged 'issue create --repo me/fork --title Upstream v1.0.0 
 clone
 run VERIFY_CMD='test -f up.txt && test -f ours.txt'
 check 'verification sees the merged tree and passes' test "$status" -eq 0
+
+echo '5b. default failure reporting stays in Actions without issue notifications'
+fixture quiet-conflict conflict
+before=$(refs "$S/origin.git")
+run STUB_LATEST_TAG=v1.1.0
+check 'a quiet conflict still fails' test "$status" -eq 1
+check 'conflict details remain in the run log' grep -q 'base.txt' "$S/stdout"
+check 'conflict opens no issue or comment' test "$(grep -c '^issue ' "$GH_LOG")" -eq 0
+check 'origin untouched' test "$(refs "$S/origin.git")" = "$before"
+fixture quiet-verify patch
+before=$(refs "$S/origin.git")
+run VERIFY_CMD=false
+check 'a quiet verification failure still fails' test "$status" -eq 1
+check 'verification details remain in the run log' grep -q 'failed verification' "$S/stdout"
+check 'verification opens no issue or comment' test "$(grep -c '^issue ' "$GH_LOG")" -eq 0
+check 'origin untouched' test "$(refs "$S/origin.git")" = "$before"
 
 echo '7. dry run'
 fixture dry patch
@@ -186,7 +202,7 @@ check 'exits 0' test "$status" -eq 0
 check 'origin untouched' test "$(refs "$S/origin.git")" = "$before"
 check 'gh only resolved the tag' test "$(grep -vc '^api ' "$GH_LOG")" -eq 0
 check 'released=false' grep -qx 'released=false' "$GITHUB_OUTPUT"
-run DRY_RUN=true STUB_LATEST_TAG=v1.1.0 VERIFY_CMD=false
+run REPORT_ISSUES=true DRY_RUN=true STUB_LATEST_TAG=v1.1.0 VERIFY_CMD=false
 check 'a failing dry run files no issue' test "$status" -eq 1 -a "$(grep -c '^issue ' "$GH_LOG")" -eq 0
 
 echo '9. tag pushed earlier but never published'

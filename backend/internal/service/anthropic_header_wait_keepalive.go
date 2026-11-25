@@ -160,7 +160,7 @@ func (w *anthropicHeaderWaitWriter) start(ctx context.Context, interval time.Dur
 					return
 				}
 				if !w.committed {
-					header := w.ResponseWriter.Header()
+					header := w.Header()
 					header.Set("Content-Type", "text/event-stream")
 					header.Set("Cache-Control", "no-cache, no-transform")
 					header.Set("X-Accel-Buffering", "no")

@@ -26,7 +26,9 @@ func newAnthropicHeaderWaitTest(t *testing.T, flushErr error) (*gin.Context, *ht
 	signal := &headerWaitFlushSignalWriter{ResponseWriter: c.Writer, flushed: make(chan struct{}, 16), err: flushErr}
 	c.Writer = signal
 	t.Cleanup(WrapAnthropicHeaderWait(c, true))
-	return c, rec, c.Writer.(*anthropicHeaderWaitWriter), signal.flushed
+	writer, ok := c.Writer.(*anthropicHeaderWaitWriter)
+	require.True(t, ok)
+	return c, rec, writer, signal.flushed
 }
 
 func TestAnthropicHeaderWaitKeepsFailoverAndGenerationBoundary(t *testing.T) {
@@ -177,7 +179,7 @@ func TestAnthropicHeaderWaitRealHTTPAcross429Attempts(t *testing.T) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/v1/messages", strings.NewReader(`{"stream":true}`))
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err, "the first heartbeat must arrive while headers are blocked")
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 	beat := make([]byte, len(": keepalive\n\n"))
 	for i := 0; i < 2; i++ {
 		_, err = io.ReadFull(resp.Body, beat)

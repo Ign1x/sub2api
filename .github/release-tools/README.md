@@ -6,31 +6,25 @@
 at 04:17 UTC. Use its **Run workflow** button to check sooner; select `dry_run`
 to merge and verify without pushing or publishing.
 
-Merge conflicts and verification failures fail the run and open one issue per
-release and failure type. Subsequent failures reference the open issue in the
-run log without adding notification-generating comments. Full failure details
-remain in each run log. Keep fork documentation exceptions beside the existing
-`docs/*` exceptions in `.gitignore`, so upstream additions at the end of the file
-can merge without conflicting with fork-only additions.
+Merge conflicts and verification failures fail the run and retain details in
+Actions logs. They do not create issues or comments by default. Set the repository
+variable `UPSTREAM_SYNC_REPORT_ISSUES=true` to opt in to one issue per release and
+failure type; repeat failures only reference the existing issue in the run log.
+Keep fork documentation exceptions beside the existing `docs/*` exceptions in
+`.gitignore`, and put fork regression cases in separate files where possible, so
+upstream additions do not conflict with fork-only additions.
 
-GitHub's built-in Actions notifications are controlled by the recipient, not by
-workflow YAML. To silence successful runs, open
-[Settings → Notifications](https://github.com/settings/notifications), then
-**System → Actions**, select **Only notify for failed workflows**, and save.
-This is an account-wide preference, not a per-repository switch. See
+GitHub's built-in Actions email notifications are controlled by the recipient,
+not workflow YAML. In [Settings → Notifications](https://github.com/settings/notifications),
+under **System → Actions**, deselect **Email** and save to disable Actions emails
+for the account. **Only notify for failed workflows** still sends failure emails.
+GitHub does not expose a separate Actions email toggle for one repository. A
+repository's **Watch → Ignore** setting mutes all its notifications, including
+issues and pull requests; use an email filter if those should be retained. See
 [GitHub's notification documentation](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications).
 
-The merge verification enables the `unit` build tag and runs the upstream
-Anthropic stream framing/integrity and gateway protocol regressions alongside
-the fork's replay, synchronous streaming and keepalive checks. Keep these tests
-enabled when adapting fork patches to upstream parser changes.
-
-Deployed header-wait and JSON-validation patches are committed on `stable`.
-Verification also covers code-less encrypted rejection recovery, the independent
-400 recovery switch, tool-history preservation and the same-account retry limit.
-The workflow ensures Redis is available so the real HTTP/Redis recovery tests run
-instead of being skipped. New upstream tags are merged into this maintained
-branch; release archives and images are built from the verified merged commit.
+CI and security checks run on `stable` pushes as well as upstream's `production`
+branch and release tags, so fork changes are checked before the next release.
 
 Run the offline merge, verification, publication and notification checks with:
 

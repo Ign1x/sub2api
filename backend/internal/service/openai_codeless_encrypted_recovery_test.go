@@ -27,9 +27,10 @@ func TestForwardCodelessEncryptedContentRecovery(t *testing.T) {
 		for _, streamError := range []bool{false, true} {
 			t.Run(code+map[bool]string{false: "/HTTP", true: "/SSE"}[streamError], func(t *testing.T) {
 				fields := map[string]any{"type": "invalid_request_error", "param": "", "message": codelessEncryptedDiagnostic + codelessEncryptedTrace}
-				if code == "null" {
+				switch code {
+				case "null":
 					fields["code"] = nil
-				} else if code == "empty" {
+				case "empty":
 					fields["code"] = ""
 				}
 				failure := newStreamLineageSSEResponse(codelessEncryptedRejection(t, fields))

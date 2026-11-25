@@ -10,7 +10,8 @@
 #      repository with write access. Without it the run pushes with GITHUB_TOKEN,
 #      which cannot push a merge that changes .github/workflows.
 #   4. Optional repository variables: UPSTREAM_REPO (default ranxi2001/sub2api),
-#      SIMPLE_RELEASE=true (amd64 GHCR image only).
+#      SIMPLE_RELEASE=true (amd64 GHCR image only),
+#      UPSTREAM_SYNC_REPORT_ISSUES=true (opt in to failure issues).
 name: Follow upstream release
 
 on:
@@ -78,6 +79,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TARGET_BRANCH: ${{ github.event.repository.default_branch || github.ref_name }}
           REQUESTED_TAG: ${{ inputs.tag }}
+          REPORT_ISSUES: ${{ vars.UPSTREAM_SYNC_REPORT_ISSUES == 'true' }}
           REBUILD: ${{ inputs.rebuild == true }}
           DRY_RUN: ${{ inputs.dry_run == true }}
           PUSH_TRIGGERS_WORKFLOWS: ${{ secrets.UPSTREAM_SYNC_SSH_KEY != '' }}
